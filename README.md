@@ -32,6 +32,8 @@ Treasury, Lair, Hatchery, Training Pit, Library, Guard Post, Workshop, Bridge, P
 
 **Minions** need beds, chickens and wages. Payday comes regularly, and an empty treasury leads to mutiny. Each creature has its own jobs: warlocks research, trolls forge, goblins train.
 
+**The mentor** reads important news aloud in a low voice using the browser's speech synthesis. You can turn it off in Options.
+
 **Spells** (gold-powered): Create Imp, Sight of Evil, Call to Arms, **Possess**, Speed, Heal, Lightning, Protect, Cave-In, Chicken, Hellfire. The Library researches new rooms and spells.
 
 **Possession** lets you see through a minion's eyes in first person. Use WASD to move, the mouse to look, left-click to attack (or dig, as an imp), and right-click to release.

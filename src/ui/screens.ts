@@ -5,6 +5,7 @@ import type { Sfx } from '../audio/sfx';
 export interface Options {
   volume: number;
   music: boolean;
+  voice: boolean;
   edgeScroll: boolean;
   resolution: number;
   dither: boolean;
@@ -16,7 +17,7 @@ export const SAVE_KEY = 'underkeep.run';
 export const BEST_KEY = 'underkeep.best';
 
 export function loadOptions(): Options {
-  const def: Options = { volume: 0.7, music: true, edgeScroll: true, resolution: 360, dither: true, affine: 0.55 };
+  const def: Options = { volume: 0.7, music: true, voice: true, edgeScroll: true, resolution: 360, dither: true, affine: 0.55 };
   try {
     const s = localStorage.getItem(OPTIONS_KEY);
     if (s) return { ...def, ...JSON.parse(s) };
@@ -116,6 +117,7 @@ export class Screens {
           <div class="opts" style="display:grid;grid-template-columns:1fr 1fr;gap:10px 16px;font-size:20px;align-items:center">
             <label>Volume</label><input type="range" min="0" max="1" step="0.05" data-k="volume">
             <label>Music</label><input type="checkbox" data-k="music">
+            <label>Mentor voice</label><input type="checkbox" data-k="voice">
             <label>Edge scrolling</label><input type="checkbox" data-k="edgeScroll">
             <label>Dithering</label><input type="checkbox" data-k="dither">
             <label>Resolution</label><select data-k="resolution"><option value="240">240p (raw PS1)</option><option value="360">360p (clean)</option><option value="480">480p (sharp)</option></select>

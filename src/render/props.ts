@@ -36,9 +36,16 @@ export class RoomProps {
     this.trapSig = -1;
   }
 
+  private roomSeen(r: RoomInst): boolean {
+    const m = this.game.map;
+    return r.tiles.some((t) => m.revealed[t]);
+  }
+
   private signature(): string {
     const g = this.game;
     let s = g.roomsVersion + '|' + Math.floor(g.keeper.gold / 250) + '|';
+    for (const r of g.rooms) s += this.roomSeen(r) ? '1' : '0';
+    s += '|';
     for (const [t] of g.bedOwner) s += t + ',';
     return s;
   }
@@ -160,6 +167,7 @@ export class RoomProps {
     const perTile = 1000 * g.rules.treasuryMul;
 
     for (const r of g.rooms) {
+      if (!this.roomSeen(r)) continue;
       switch (r.type) {
         case Room.Heart: {
           const [cx, cz] = [r.cx, r.cz];

@@ -14,6 +14,7 @@ import { Creature } from './game/entity';
 import { Room, ROOMS, PLAYER, Tile, isSolid, WALL_H, HEROES, isDiggable } from './game/defs';
 import { SPELLS, castSpell } from './game/spells';
 import { Sfx } from './audio/sfx';
+import { Mentor } from './audio/mentor';
 import { Possession } from './possess';
 import { TRAPS, canPlace, place } from './game/traps';
 
@@ -30,6 +31,7 @@ export class App {
   hud: Hud;
   texData: Uint8Array;
   sfx = new Sfx();
+  mentor = new Mentor();
   ui: HTMLElement;
 
   game: Game | null = null;
@@ -175,6 +177,7 @@ export class App {
 
   unloadRealm() {
     this.possession.release();
+    this.mentor.stop();
     if (this.terrain) this.scene.remove(this.terrain.group);
     if (this.entities) this.scene.remove(this.entities.group);
     if (this.props) this.scene.remove(this.props.group);
@@ -413,7 +416,10 @@ export class App {
         case 'msg':
           if (this.demo) break;
           this.hud.message(e.text!, e.color, e.important);
-          if (e.important) this.sfx.play('bell');
+          if (e.important) {
+            this.sfx.play('bell');
+            this.mentor.say(e.text!, /heart|under attack|fallen/i.test(e.text!));
+          }
           break;
         case 'sfx': {
           let vol = 1;

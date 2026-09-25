@@ -27,6 +27,8 @@ function applyOptions(o: Options) {
   if (app.sfx.musicOn !== o.music) app.sfx.toggleMusic();
   app.sfx.musicOn = o.music;
   app.edgeScroll = o.edgeScroll;
+  app.mentor.enabled = o.voice && 'speechSynthesis' in window;
+  app.mentor.volume = Math.min(1, o.volume + 0.2);
   app.pipe.targetHeight = o.resolution;
   app.pipe.postMat.uniforms.uDither.value = o.dither ? 1 : 0;
   shared.uAffine.value = o.affine;

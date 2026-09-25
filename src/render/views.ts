@@ -261,6 +261,7 @@ export class EntityRenderer {
   private barPos = new Float32Array(4096 * 3);
   private barCol = new Float32Array(4096 * 3);
   hovered: Creature | null = null;
+  firstPerson = false;
   private staticMat: THREE.ShaderMaterial;
   private goldMesh: THREE.Mesh | null = null;
   private crateMesh: THREE.Mesh | null = null;
@@ -353,7 +354,8 @@ export class EntityRenderer {
       if (!c.alive || c.kind === 'chicken' || c.removed || c.state === 'ko' || c.state === 'carried' || c.carriedBy) continue;
       const v = this.views.get(c.id);
       if (!v || !v.rig.root.visible) continue;
-      const show = c.hp < c.maxHp - 0.5 || c === this.hovered || c.state === 'fight' || c.def.boss;
+      let show = c.hp < c.maxHp - 0.5 || c === this.hovered || c.state === 'fight' || c.def.boss;
+      if (this.firstPerson && c.owner === PLAYER) show = false;
       if (!show) continue;
       const h = v.rig.spec.height * c.def.scale + 0.25 + (v.rig.spec.hover || 0);
       const cx = c.x,

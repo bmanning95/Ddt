@@ -159,7 +159,8 @@ void main() {
   vec3 grid = texture(uLightGrid, wp.xz / uGridSize).rgb * 2.0;
   float key = clamp(dot(n, uKeyDir), 0.0, 1.0);
   float up = n.y * 0.5 + 0.5;
-  vec3 light = uAmbient * (0.9 + up * 0.8) + grid * (0.55 + key * 0.6) + dynLight(wp.xyz, n, 1.0);
+  vec3 light = uAmbient * (0.9 + up * 0.8) + grid * (0.45 + key * 0.45) + dynLight(wp.xyz, n, 1.0);
+  light = min(light, vec3(1.45));
   light += uTint.rgb;
   if (uTint.a > 0.5) light = vec3(1.0) + uTint.rgb;
   if (flame) light = vec3(1.25);

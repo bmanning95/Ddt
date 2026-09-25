@@ -442,6 +442,16 @@ export class Hud {
     tmp.getContext('2d')!.putImageData(this.mmImg, 0, 0);
     ctx.imageSmoothingEnabled = false;
     ctx.drawImage(tmp, 0, 0, cv.width, cv.height);
+    // known hero strongholds
+    const blink = Math.floor(performance.now() / 500) % 2 === 0;
+    const mark = (x: number, z: number, col: string, size: number) => {
+      ctx.fillStyle = col;
+      ctx.fillRect(x * 2 - size, z * 2 - 1, size * 2 + 2, 2);
+      ctx.fillRect(x * 2, z * 2 - size - 1, 2, size * 2 + 2);
+    };
+    const L = g.layout;
+    if (L.heroKeep && g.director.wave.lordAlive) mark(L.heroKeep.x, L.heroKeep.z, blink ? '#ffe070' : '#8090ff', 5);
+    for (const gt of L.heroGates) mark(gt.x, gt.z, '#80a0ff', 3);
     // camera marker
     ctx.strokeStyle = '#f0d890';
     ctx.lineWidth = 1;

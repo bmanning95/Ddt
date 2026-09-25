@@ -33,6 +33,7 @@ export class Possession {
     this.hudEl.innerHTML = `<div class="crosshair"></div><div class="possess-hud"><div id="p-name"></div><div class="dim">WASD move · Mouse look · Left-click attack${c.isImp ? '/dig' : ''} · Right-click or Esc to release</div></div>`;
     this.app.ui.appendChild(this.hudEl);
     this.app.hud.show(false);
+    this.app.terrain?.setWallScale(2.3);
     this.app.sfx.play('summon');
   }
 
@@ -47,6 +48,7 @@ export class Possession {
     if (document.pointerLockElement) document.exitPointerLock();
     this.hudEl?.remove();
     this.hudEl = null;
+    this.app.terrain?.setWallScale(1);
     if (this.app.game) this.app.hud.show(true);
   }
 

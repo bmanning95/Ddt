@@ -374,6 +374,7 @@ export class App {
     const heldIds = new Set(this.held.map((c) => c.id));
     const activeCam = this.possession.active ? this.possession.camera : this.cam.camera;
     this.entities.hovered = this.hoverCreature;
+    this.entities.firstPerson = this.possession.active;
     this.entities.update(dt, this.time, activeCam, heldIds);
     if (this.possession.active && this.possession.target) {
       const v = this.entities.views.get(this.possession.target.id);

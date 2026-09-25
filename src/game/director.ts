@@ -22,6 +22,8 @@ export class Director {
   portalT = 12;
   hatchT = 3;
   warned = false;
+  hintT = 0;
+  hint = 0;
 
   constructor(public g: Game) {
     this.wave.nextT = g.rules.firstWave;
@@ -99,9 +101,23 @@ export class Director {
     c.hp = c.maxHp;
   }
 
+  // the mentor's advice during the first realm
+  private hints(dt: number) {
+    const g = this.g;
+    if (g.rules.depth > 0 || this.hint >= HINTS.length) return;
+    this.hintT += dt;
+    const h = HINTS[this.hint];
+    if (this.hintT >= h.t && h.when(g)) {
+      g.msg(h.text, '#e8c890', true);
+      this.hint++;
+      this.hintT = 0;
+    }
+  }
+
   update(dt: number) {
     const g = this.g;
     const m = g.map;
+    this.hints(dt);
 
     // portal attraction
     this.portalT -= dt;
@@ -259,3 +275,13 @@ export function openCrate(g: Game, cr: Crate, c: Creature) {
   void c;
   void Tile;
 }
+
+const HINTS: { t: number; text: string; when: (g: Game) => boolean }[] = [
+  { t: 3, text: 'Welcome, Keeper. Left-click and drag across the earth to mark it for your imps to dig.', when: () => true },
+  { t: 12, text: 'Gold needs a home. Open the Rooms tab and paint a Treasury onto claimed floor.', when: (g) => g.roomTiles(Room.Treasury) === 0 },
+  { t: 10, text: 'Somewhere nearby lies a Portal. Tunnel to it and your imps will claim it.', when: (g) => g.roomsOf(Room.Portal).length === 0 },
+  { t: 12, text: 'Creatures demand a Lair to sleep in and a Hatchery to feed from.', when: (g) => g.roomTiles(Room.Lair) === 0 || g.roomTiles(Room.Hatchery) === 0 },
+  { t: 20, text: 'Build a Training Pit to harden your minions, and a Library to uncover dark secrets.', when: (g) => g.roomTiles(Room.Training) === 0 || g.roomTiles(Room.Library) === 0 },
+  { t: 30, text: "Pick up minions with the Hand and drop them on intruders. Slap the lazy ones. It's good for them.", when: () => true },
+  { t: 40, text: 'The Lord of this land cowers in his keep, marked on your map. Tunnel to him and end him.', when: () => true },
+];

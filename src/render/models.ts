@@ -255,10 +255,35 @@ function quad(o: QuadOpts): RigSpec {
     );
   if (o.wings) {
     const sp = o.wings;
+    // bat-like: a bony arm with three finger spars and a scalloped membrane between them
     const wing = (side: number) => (b: GeoBuilder) => {
-      b.quad(M(), [0, 0, 0.2, side * sp, 0.3, 0, side * sp * 0.9, 0, -0.5, 0, 0, -0.4], { color: 0x5a2a1a, layer: Tex.Skin });
-      b.quad(M(), [0, 0, -0.4, side * sp * 0.9, 0, -0.5, side * sp, 0.3, 0, 0, 0, 0.2], { color: 0x5a2a1a, layer: Tex.Skin });
-      b.box(M((side * sp) / 2, 0.15, 0.1, 0, 0, side * 0.3), sp, 0.05, 0.05, { color: o.color, layer: tex });
+      const tip = [side * sp, 0.34, 0.05];
+      const f1 = [side * sp * 0.95, 0.05, -0.35];
+      const f2 = [side * sp * 0.55, -0.02, -0.42];
+      const root = [0, 0, -0.25];
+      const elbow = [side * sp * 0.45, 0.2, 0.12];
+      const mem = { color: 0x4a1a14, layer: Tex.Skin } as const;
+      const tri = (a: number[], c: number[], d: number[]) => {
+        b.quad(M(), [...a, ...c, ...d, ...d], mem);
+        b.quad(M(), [...d, ...d, ...c, ...a], mem);
+      };
+      tri(elbow, tip, f1);
+      tri(elbow, f1, f2);
+      tri(elbow, f2, root);
+      tri([0, 0, 0.1], elbow, root);
+      const spar = (a: number[], c: number[], w: number) => {
+        const dx = c[0] - a[0],
+          dy = c[1] - a[1],
+          dz = c[2] - a[2];
+        const len = Math.hypot(dx, dy, dz);
+        const m = new THREE.Matrix4().lookAt(new THREE.Vector3(a[0], a[1], a[2]), new THREE.Vector3(c[0], c[1], c[2]), new THREE.Vector3(0, 1, 0));
+        m.setPosition((a[0] + c[0]) / 2, (a[1] + c[1]) / 2, (a[2] + c[2]) / 2);
+        b.box(m, w, w, len, { color: o.color, layer: tex });
+      };
+      spar([0, 0, 0.1], elbow, 0.07);
+      spar(elbow, tip, 0.05);
+      spar(elbow, f1, 0.035);
+      spar(elbow, f2, 0.035);
     };
     parts.push(part('wingL', 'body', [o.bodyW / 2, o.bodyH / 2, 0], wing(1)));
     parts.push(part('wingR', 'body', [-o.bodyW / 2, o.bodyH / 2, 0], wing(-1)));

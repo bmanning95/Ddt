@@ -257,6 +257,8 @@ export class TerrainRenderer {
   extraLights: LightSource[] = [];
   // hover/selection highlight
   tagMesh: THREE.Mesh;
+  ceiling: THREE.Mesh;
+  wallScale = 1;
   private tmp = [0, 0, 0];
 
   constructor(public map: GameMap) {
@@ -271,6 +273,41 @@ export class TerrainRenderer {
     shared.uGridSize.value.set(map.w, map.h);
     map.onChange((x, z) => this.markTile(x, z));
     this.tagMesh = new THREE.Mesh(new THREE.BufferGeometry(), this.material);
+    // a low stone ceiling, only shown when seeing the world through a minion's eyes
+    const cg = new THREE.BufferGeometry();
+    const cp: number[] = [],
+      cu: number[] = [],
+      cc: number[] = [],
+      cl: number[] = [],
+      ci: number[] = [];
+    const k = 0.7;
+    for (let z = 0; z < map.h; z += 2)
+      for (let x = 0; x < map.w; x += 2) {
+        const b = cp.length / 3;
+        cp.push(x, 0, z, x + 2, 0, z, x + 2, 0, z + 2, x, 0, z + 2);
+        cu.push(0, 0, 2, 0, 2, 2, 0, 2);
+        for (let q = 0; q < 4; q++) {
+          cc.push(k, k * 0.95, k * 0.9);
+          cl.push(Tex.RockTop);
+        }
+        ci.push(b, b + 1, b + 2, b, b + 2, b + 3);
+      }
+    cg.setAttribute('position', new THREE.Float32BufferAttribute(cp, 3));
+    cg.setAttribute('uv', new THREE.Float32BufferAttribute(cu, 2));
+    cg.setAttribute('color', new THREE.Float32BufferAttribute(cc, 3));
+    cg.setAttribute('layer', new THREE.Float32BufferAttribute(cl, 1));
+    cg.setIndex(ci);
+    this.ceiling = new THREE.Mesh(cg, this.material);
+    this.ceiling.visible = false;
+    this.ceiling.frustumCulled = false;
+    this.group.add(this.ceiling);
+  }
+
+  setWallScale(s: number) {
+    this.wallScale = s;
+    for (const c of this.chunks) if (c.mesh) c.mesh.scale.y = s;
+    this.ceiling.visible = s > 1.01;
+    this.ceiling.position.y = WALL_H * s - 0.02;
   }
 
   markTile(x: number, z: number) {
@@ -288,9 +325,13 @@ export class TerrainRenderer {
     this.lightsDirty = true;
   }
 
+  private lastLight = 0;
+
   update() {
-    if (this.lightsDirty) {
+    const now = performance.now();
+    if (this.lightsDirty && now - this.lastLight > 120) {
       this.lightsDirty = false;
+      this.lastLight = now;
       this.light.collectLights(this.extraLights);
       const changed = this.light.compute();
       for (const i of changed) {
@@ -524,6 +565,7 @@ export class TerrainRenderer {
       c.mesh.geometry = g;
     } else {
       c.mesh = new THREE.Mesh(g, this.material);
+      c.mesh.scale.y = this.wallScale;
       this.group.add(c.mesh);
     }
     if (c.props) {

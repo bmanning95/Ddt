@@ -388,7 +388,7 @@ function workAt(g: Game, c: Creature, dt: number) {
         return;
       }
       g.keeper.gold -= cost;
-      c.xp += dt * 5.5 * g.rules.trainMul * (g.keeper.hasRelic('warbanner') ? 1.5 : 1);
+      c.xp += dt * 5.5 * g.rules.trainMul;
       if (c.workT > 0.9) {
         c.workT = 0;
         c.animT = 0;
@@ -399,7 +399,7 @@ function workAt(g: Game, c: Creature, dt: number) {
     }
     case 'research':
       c.anim = 'research';
-      g.keeper.research += dt * c.def.research * lm * g.rules.researchMul * (g.keeper.hasRelic('grimoire') ? 1.5 : 1);
+      g.keeper.research += dt * c.def.research * lm * g.rules.researchMul;
       if (c.stateT > 60) c.state = 'idle';
       return;
     case 'manufacture':

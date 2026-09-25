@@ -74,7 +74,7 @@ interface BipedOpts {
   neckY?: number;
 }
 
-function biped(o: BipedOpts): RigSpec {
+function biped(o: BipedOpts, extra?: (parts: PartSpec[]) => void): RigSpec {
   const parts: PartSpec[] = [];
   const [tw, th, td] = o.torso;
   const bodyY = o.legLen;
@@ -140,6 +140,7 @@ function biped(o: BipedOpts): RigSpec {
     parts.push(part('wingL', 'body', [tw * 0.3, th * 0.8, -td / 2], wing(1)));
     parts.push(part('wingR', 'body', [-tw * 0.3, th * 0.8, -td / 2], wing(-1)));
   }
+  extra?.(parts);
   return { type: 'biped', parts, height: bodyY + th + hs, hover: 0, bodyY };
 }
 
@@ -401,6 +402,15 @@ function build(kind: string): RigSpec {
           b.cyl(M(0, 0, 0, -PI / 2 - 0.6, 0, 0), 0.03, 0.015, 0.36, 4, { color: 0xb8482a, layer: Tex.Skin });
           b.cyl(M(0, -0.21, -0.3, 0, 0, 0), 0.05, 0, 0.08, 4, { color: 0x2a1a10, layer: Tex.Skin });
         },
+      }, (parts) => {
+        // a bulging sack of gold, shown while hauling
+        parts.push(
+          part('sack', 'body', [0, 0.22, -0.2], (b) => {
+            b.sphere(M(0, 0, -0.04, 0, 0, 0, 1, 0.9, 0.85), 0.16, 6, 4, { color: 0x8a6a3a, layer: Tex.Cloth });
+            b.cyl(M(0, 0.12, -0.04), 0.05, 0.07, 0.08, 5, { color: 0x6a4a2a, layer: Tex.Cloth });
+            b.sphere(M(0.05, 0.06, 0.08), 0.05, 4, 3, { color: 0xffd040, layer: Tex.GoldCoins });
+          }),
+        );
       });
     case 'goblin':
       return biped({

@@ -7,6 +7,14 @@ import { createModelMaterial } from './ps1';
 import { GeoBuilder, M } from './builder';
 import { Tex } from './textures';
 
+// 5x5 pixel glyphs for status icons over heads
+const GLYPHS: Record<string, string[]> = {
+  Z: ['#####', '...#.', '..#..', '.#...', '#####'],
+  '!': ['..#..', '..#..', '..#..', '.....', '..#..'],
+  $: ['.####', '#.#..', '.###.', '..#.#', '####.'],
+  food: ['...##', '..###', '.###.', '##...', '#....'],
+};
+
 const OWNER_COL: Record<number, [number, number, number]> = {
   0: [0.7, 0.7, 0.7],
   1: [0.9, 0.15, 0.1],
@@ -42,6 +50,10 @@ export class CreatureView {
     r.pivot.rotation.set(0, 0, 0);
     r.pivot.position.set(0, 0, 0);
 
+    if (p.sack) {
+      p.sack.visible = c.carryGold > 0;
+      p.sack.scale.setScalar(0.6 + Math.min(1, c.carryGold / 300) * 0.6);
+    }
     const lvlScale = 1 + (c.level - 1) * 0.025;
     r.pivot.scale.setScalar(c.def.scale * lvlScale);
 
@@ -372,6 +384,47 @@ export class EntityRenderer {
         const px = -w + k * 0.055;
         quad(cx, cy, cz, px, px + 0.035, 0.06, 0.09, c.owner === HEROES ? [0.8, 0.85, 1] : [1, 0.8, 0.2]);
       }
+    }
+    // status glyphs for your minions
+    for (const c of g.creatures) {
+      if (!c.alive || c.owner !== PLAYER || c.isImp || c.kind === 'chicken' || this.firstPerson) continue;
+      const v = this.views.get(c.id);
+      if (!v || !v.rig.root.visible) continue;
+      let glyph = '';
+      let col: [number, number, number] = [1, 1, 1];
+      if (c.state === 'sleep') {
+        glyph = 'Z';
+        col = [0.7, 0.8, 1];
+      } else if (c.anger > 0.6) {
+        glyph = '!';
+        col = [1, 0.25, 0.15];
+      } else if (c.hunger > 1.2) {
+        glyph = 'food';
+        col = [1, 0.7, 0.4];
+      } else if (c.owed > 0) {
+        glyph = '$';
+        col = [1, 0.85, 0.25];
+      }
+      if (!glyph) continue;
+      const bob = Math.sin(performance.now() / 300 + c.id) * 0.04;
+      const sleepY = c.state === 'sleep' ? -v.rig.spec.height * c.def.scale * 0.5 : 0;
+      const cy = c.y + v.rig.spec.height * c.def.scale + 0.45 + bob + sleepY;
+      const rows = GLYPHS[glyph];
+      const px = 0.035;
+      for (let r = 0; r < 5; r++)
+        for (let q = 0; q < 5; q++) {
+          if (rows[r][q] !== '#') continue;
+          const x0 = (q - 2.5) * px,
+            y0 = (2 - r) * px;
+          quad(c.x, cy, c.z, x0 - 0.008, x0 + px + 0.008, y0 - 0.008, y0 + px + 0.008, [0, 0, 0]);
+        }
+      for (let r = 0; r < 5; r++)
+        for (let q = 0; q < 5; q++) {
+          if (rows[r][q] !== '#') continue;
+          const x0 = (q - 2.5) * px,
+            y0 = (2 - r) * px;
+          quad(c.x, cy, c.z, x0, x0 + px, y0, y0 + px, col);
+        }
     }
     this.barGeo.setDrawRange(0, n);
     (this.barGeo.attributes.position as THREE.BufferAttribute).needsUpdate = true;

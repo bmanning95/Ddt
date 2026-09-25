@@ -94,7 +94,8 @@ export class Screens {
           Pick a room in the <b>Rooms</b> tab and paint it over claimed floor. A <b>Treasury</b> stores gold, a <b>Lair</b> gives beds, a <b>Hatchery</b> feeds, a <b>Training Pit</b> levels up, a <b>Library</b> researches new rooms and spells.<br>
           Claim a <b>Portal</b> to attract creatures. Better rooms attract better creatures.<br><br>
           <b style="color:#ffd070">Minions</b><br>
-          Minions need beds, food and pay. Payday comes regularly — an empty treasury breeds mutiny.<br><br>
+          Minions need beds, food and pay. Payday comes regularly — an empty treasury breeds mutiny.<br>
+          Cast <b>Possess</b> to fight through a minion's eyes. Trolls in a <b>Workshop</b> forge traps and doors (Forge tab). Build a <b>Prison</b> to take heroes alive.<br><br>
           <b style="color:#ffd070">The Run</b><br>
           Conquer realms across the map toward Shiningspire. After each victory, claim a <b>relic</b> and choose a <b>retinue</b> of minions to follow you. Rooms and spells you research stay known. If your <b>Dungeon Heart</b> falls, the run ends.<br><br>
           <b style="color:#ffd070">Keys</b><br>

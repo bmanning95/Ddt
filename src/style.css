@@ -54,6 +54,18 @@ body {
   pointer-events: auto;
 }
 
+input,
+select {
+  accent-color: #c07030;
+}
+select {
+  background: #120c0a;
+  color: var(--text);
+  border: 1px solid var(--edge);
+  font-family: inherit;
+  font-size: 18px;
+}
+
 button {
   font-family: inherit;
   font-size: inherit;

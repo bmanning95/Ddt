@@ -218,11 +218,39 @@ function startRealm(r: Run, node: RunNode): Game {
   return g;
 }
 
+function atmosphere(node: RunNode): [[number, number, number], [number, number, number]] {
+  const d = node.col;
+  // deeper realms grow colder and darker
+  let amb: [number, number, number] = [0.12 - d * 0.004, 0.1 - d * 0.003, 0.13 + d * 0.003];
+  let fog: [number, number, number] = [0.02, 0.012, 0.025 + d * 0.003];
+  const o = node.omens;
+  if (o.includes('volcanic')) {
+    amb = [0.16, 0.08, 0.06];
+    fog = [0.05, 0.012, 0.008];
+  } else if (o.includes('flooded')) {
+    amb = [0.08, 0.11, 0.13];
+    fog = [0.008, 0.025, 0.03];
+  } else if (o.includes('haunted')) {
+    amb = [0.09, 0.13, 0.1];
+    fog = [0.01, 0.03, 0.02];
+  } else if (o.includes('bloodmoon')) {
+    amb = [0.15, 0.07, 0.08];
+    fog = [0.04, 0.008, 0.012];
+  }
+  if (node.type === 'boss') {
+    amb = [0.15, 0.13, 0.1];
+    fog = [0.04, 0.035, 0.02];
+  }
+  return [amb, fog];
+}
+
 function playRealm(node: RunNode): Promise<'quit' | 'abandon' | { win: boolean; game: Game }> {
   return new Promise((resolve) => {
     const r = run!;
     const g = startRealm(r, node);
     app.loadRealm(g, node.name);
+    const [amb, fog] = atmosphere(node);
+    app.setAtmosphere(amb, fog);
     app.overlayOpen = true;
     screens.realmIntro(node, objectiveText(g)).then(() => {
       app.overlayOpen = false;

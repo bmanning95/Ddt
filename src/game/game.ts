@@ -76,6 +76,7 @@ export class Game {
   heartHit = 0;
   heartLastHit = -99;
   campWarned = new Set<number>();
+  bridgeOver = new Map<number, Tile>(); // what flows beneath each bridge
   bedOwner = new Map<number, number>(); // lair tile -> creature id
   stats = { dug: 0, claimed: 0, heroesSlain: 0, minionsLost: 0, goldMined: 0, souls: 0 };
   rally: { x: number; z: number } | null = null;
@@ -299,8 +300,8 @@ export class Game {
     if (this.canBuild(x, z, type)) return false;
     this.keeper.spend(this.roomCost(type));
     const m = this.map;
+    if (type === Room.Bridge) this.bridgeOver.set(m.idx(x, z), m.tile[m.idx(x, z)]);
     m.setRoom(x, z, type, PLAYER);
-    if (type === Room.Bridge) m.variant[m.idx(x, z)] = m.tile[m.idx(x, z)];
     this.fx('build', x + 0.5, z + 0.5, 0.1, 6);
     this.sfx('build', x + 0.5, z + 0.5);
     return true;
@@ -315,7 +316,8 @@ export class Game {
     this.keeper.addGold(Math.floor(this.roomCost(r) / 2), true);
     if (r === Room.Bridge) {
       m.room[i] = Room.None;
-      m.set(x, z, Tile.Water, NEUTRAL);
+      m.set(x, z, this.bridgeOver.get(i) ?? Tile.Water, NEUTRAL);
+      this.bridgeOver.delete(i);
     } else m.setRoom(x, z, Room.None, PLAYER);
     this.sfx('sell', x + 0.5, z + 0.5);
     return true;

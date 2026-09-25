@@ -124,9 +124,17 @@ export class App {
   // ------------------------------------------------------------------ realm lifecycle
   demo = false;
 
+  // per-realm atmosphere: ambient and fog colour
+  setAtmosphere(ambient: [number, number, number], fog: [number, number, number]) {
+    shared.uAmbient.value.setRGB(ambient[0], ambient[1], ambient[2]);
+    shared.uFogColor.value.setRGB(fog[0], fog[1], fog[2]);
+    this.renderer.setClearColor(new THREE.Color(fog[0], fog[1], fog[2]));
+  }
+
   loadRealm(g: Game, name: string, demo = false) {
     this.unloadRealm();
     this.demo = demo;
+    if (demo) this.setAtmosphere([0.12, 0.1, 0.13], [0.02, 0.012, 0.025]);
     this.game = g;
     this.realmName = name;
     this.terrain = new TerrainRenderer(g.map);
@@ -381,6 +389,8 @@ export class App {
       if (v) v.rig.root.visible = false;
     }
     this.props.update(this.time);
+    if (!this.possession.active) this.fx.ambient(dt, this.cam.target.x, this.cam.target.z, this.cam.dist * 0.7);
+    else if (this.possession.target) this.fx.ambient(dt * 0.6, this.possession.target.x, this.possession.target.z, 5);
     this.fx.update(dt, g.projectiles);
     this.updateHand(dt);
     shared.uFogRange.value.set(this.possession.active ? 3 : this.cam.dist + 4, this.possession.active ? 14 : this.cam.dist + 22);

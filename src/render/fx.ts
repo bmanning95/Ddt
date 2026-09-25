@@ -229,6 +229,18 @@ export class FxSystem {
     }
   }
 
+  // drifting dust in the lamplight around a point of interest
+  ambient(dt: number, x: number, z: number, radius: number) {
+    this.moteT -= dt;
+    while (this.moteT <= 0) {
+      this.moteT += 0.06;
+      const a = Math.random() * Math.PI * 2,
+        r = Math.random() * radius;
+      this.emit(x + Math.cos(a) * r, 0.3 + Math.random() * 1.4, z + Math.sin(a) * r, 1, { color: [0.28, 0.24, 0.2], spread: 0, up: 0.05, speed: 0.12, size: 0.035, life: 4, grav: -0.02, drag: 0.2, jitter: 0.3 });
+    }
+  }
+  private moteT = 0;
+
   update(dt: number, projectiles: Projectile[]) {
     // particles
     let n = 0;

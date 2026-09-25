@@ -8,8 +8,8 @@ import { GeoBuilder, M } from './builder';
 const CHUNK = 8;
 // base (unlit) brightness per surface kind, so the dungeon reads even far from torches
 const TOP_BASE = 0.5;
-const SIDE_BASE = 0.26;
-const FLOOR_BASE = 0.2;
+const SIDE_BASE = 0.3;
+const FLOOR_BASE = 0.27;
 const LIQUID_Y = -0.16;
 
 const ROOM_FLOOR: Partial<Record<Room, Tex>> = {
@@ -44,6 +44,21 @@ const ROOM_WALL: Partial<Record<Room, Tex>> = {
   [Room.Graveyard]: Tex.WallGraveyard,
   [Room.Temple]: Tex.WallTemple,
   [Room.GuardPost]: Tex.WallGuard,
+};
+
+const ROOM_LIGHT: Partial<Record<Room, [number, number, number]>> = {
+  [Room.Treasury]: [0.75, 0.6, 0.25],
+  [Room.Lair]: [0.45, 0.32, 0.22],
+  [Room.Hatchery]: [0.62, 0.42, 0.22],
+  [Room.Training]: [0.7, 0.45, 0.22],
+  [Room.Library]: [0.5, 0.35, 0.6],
+  [Room.Workshop]: [0.75, 0.42, 0.2],
+  [Room.Prison]: [0.3, 0.38, 0.5],
+  [Room.Torture]: [0.7, 0.2, 0.15],
+  [Room.Graveyard]: [0.3, 0.45, 0.35],
+  [Room.Temple]: [0.55, 0.3, 0.7],
+  [Room.GuardPost]: [0.6, 0.5, 0.3],
+  [Room.HeroKeep]: [0.6, 0.6, 0.55],
 };
 
 export const DIRS: [number, number][] = [
@@ -125,6 +140,12 @@ export class LightGrid {
             }
         }
         const t = map.tile[i];
+        if (t === Tile.Floor && map.revealed[i]) {
+          const room = map.room[i] as Room;
+          const rl = ROOM_LIGHT[room];
+          if (rl && x % 3 === 1 && z % 3 === 1) L.push({ x: x + 0.5, z: z + 0.5, y: 1.2, r: rl[0], g: rl[1], b: rl[2], radius: 4.2, flicker: 0.5 });
+          else if (room === Room.None && map.owner[i] === PLAYER && x % 4 === 2 && z % 4 === 2) L.push({ x: x + 0.5, z: z + 0.5, y: 1.2, r: 0.3, g: 0.2, b: 0.18, radius: 4.5, flicker: 0 });
+        }
         if (t === Tile.Lava && map.revealed[i] && (x + z) % 2 === 0) L.push({ x: x + 0.5, z: z + 0.5, y: 0.3, r: 0.8, g: 0.3, b: 0.05, radius: 2.6, flicker: 0.5 });
         if (t === Tile.Gems && (x * 7 + z) % 2 === 0) L.push({ x: x + 0.5, z: z + 0.5, y: 0.5, r: 0.25, g: 0.2, b: 0.4, radius: 2.2, flicker: 0 });
       }

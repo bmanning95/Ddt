@@ -849,13 +849,13 @@ export function buildTextureData(): Uint8Array {
   P(Tex.Bone).fill((x, y) => sc([226, 220, 200], 0.8 + post(tn(x, y, 8, 561), 4) * 0.25));
   {
     const p = P(Tex.GoldCoins);
-    p.fill((x, y) => sc([200, 150, 40], 0.7 + hash2(x, y, 571) * 0.2));
-    for (let k = 0; k < 22; k++) {
+    p.fill((x, y) => sc([230, 180, 50], 0.6 + hash2(x, y, 571) * 0.25));
+    for (let k = 0; k < 26; k++) {
       const x = hash2(k, 1, 572) * 32,
         y = hash2(k, 2, 572) * 32;
-      p.disc(x, y, 2.2, [240, 190, 60]);
-      p.set(Math.round(x) - 1, Math.round(y) - 1, [255, 250, 190]);
-      p.set(Math.round(x) + 1, Math.round(y) + 1, [140, 90, 20]);
+      p.disc(x, y, 2.4, [150, 100, 20]);
+      p.disc(x - 0.3, y - 0.3, 2, [255, 214, 70]);
+      p.set(Math.round(x) - 1, Math.round(y) - 1, [255, 255, 210]);
     }
   }
   P(Tex.Flame).fill((x, y) => {

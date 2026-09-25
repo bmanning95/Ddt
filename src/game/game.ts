@@ -6,7 +6,9 @@ import { Pathfinder, CostFn } from './pathfind';
 import { Creature } from './entity';
 import { CREATURES } from './creatures';
 import { updateImp, IMP_CAP } from './imp';
-import { updateMinion, updateHero, updateChicken } from './ai';
+import { updateMinion, updateHero, updateChicken, heartRing } from './ai';
+import { Director, openCrate } from './director';
+import { separate } from './movement';
 import { updateProjectiles, Projectile } from './combat';
 import { Keeper } from './keeper';
 import { RealmRules } from './realm';
@@ -79,6 +81,11 @@ export class Game {
   heartHit = 0;
   bedOwner = new Map<number, number>(); // lair tile -> creature id
   stats = { dug: 0, claimed: 0, heroesSlain: 0, minionsLost: 0, goldMined: 0, souls: 0 };
+  rally: { x: number; z: number } | null = null;
+  possessRequest: Creature | null = null;
+  heartRing: number[] = [];
+  director: Director;
+  endT = 0;
   private tmpArr: number[] = [];
 
   constructor(layout: RealmLayout, rules: RealmRules, keeper: Keeper, seed: number) {
@@ -93,6 +100,10 @@ export class Game {
       this.roomsDirty = true;
     });
     this.recomputeRooms();
+    this.heartRing = heartRing(this);
+    this.keeper.heartMax = rules.heartHp;
+    this.keeper.heartHp = rules.heartHp;
+    this.director = new Director(this);
     this.crates = layout.crates.map((p, k) => ({ id: k + 1, tile: this.map.idx(p.x, p.z), x: p.x + 0.5, z: p.z + 0.5, opened: false }));
   }
 
@@ -462,7 +473,7 @@ export class Game {
       if (c.shieldT > 0) c.shieldT -= dt;
       if (c.attackCd > 0) c.attackCd -= dt;
       if (c.rangedCd > 0) c.rangedCd -= dt;
-      if (c.state === 'held') continue;
+      if (c.state === 'held' || c.state === 'possessed') continue;
       if (c.state === 'fall') {
         c.vy -= 22 * dt;
         c.y += c.vy * dt;
@@ -488,6 +499,8 @@ export class Game {
     }
 
     updateProjectiles(this, dt);
+    separate(this, dt);
+    this.director.update(dt);
 
     // lava burns the unwary
     if (Math.floor(this.time * 2) !== Math.floor((this.time - dt) * 2)) {
@@ -583,6 +596,35 @@ export class Game {
     const pool = filter ? arr.filter(filter) : arr;
     if (!pool.length) return -1;
     return pool[Math.floor(this.rng.next() * pool.length)];
+  }
+
+  damageHeart(dmg: number, src: Creature | null) {
+    const k = this.keeper;
+    if (this.over) return;
+    k.heartHp -= dmg;
+    this.heartHit = 0.25;
+    const [hx, hz] = this.heartCenter();
+    this.fx('heartHit', hx, hz, 1.2, 6);
+    this.sfx('heartHit', hx, hz);
+    if (Math.floor((k.heartHp + dmg) / 500) !== Math.floor(k.heartHp / 500)) this.msg('Your Dungeon Heart is under attack!', '#ff4040', true);
+    if (k.heartHp <= 0) {
+      k.heartHp = 0;
+      this.events.push({ type: 'shake', n: 2 });
+      this.fx('heartDie', hx, hz, 1.2, 80);
+      this.endRealm(false);
+    }
+    void src;
+  }
+
+  openCrate(cr: Crate, c: Creature) {
+    openCrate(this, cr, c);
+  }
+
+  endRealm(win: boolean) {
+    if (this.over) return;
+    this.over = true;
+    this.won = win;
+    this.events.push({ type: 'end', win });
   }
 
   heartCenter(): [number, number] {

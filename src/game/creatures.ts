@@ -161,7 +161,7 @@ export const CREATURES: Record<string, CreatureDef> = {
   giant: K({ key: 'giant', name: 'Giant', hero: true, hp: 1100, dmg: 50, armor: 8, speed: 1.3, attackRate: 1.6, scale: 1.6, souls: 8, bounty: 260, desc: 'A lumbering colossus.' }),
   lord: K({ key: 'lord', name: 'Lord of the Land', hero: true, hp: 2600, dmg: 60, armor: 18, speed: 1.7, scale: 1.25, boss: true, souls: 30, bounty: 1500, desc: 'The local tyrant of righteousness. Slay him.' }),
   avatar: K({ key: 'avatar', name: 'The Avatar', hero: true, hp: 7000, dmg: 90, armor: 24, speed: 1.9, scale: 1.6, boss: true, ranged: { kind: 'bolt', dmg: 60, range: 6, rate: 2.5, speed: 10, splash: 1 }, souls: 100, bounty: 5000, desc: 'The shining paragon of all that is good. Your final foe.' }),
-  chicken: K({ key: 'chicken', name: 'Chicken', hp: 10, dmg: 0, speed: 1.1, wage: 0, jobs: [], scale: 0.5, desc: 'Food.' }),
+  chicken: K({ key: 'chicken', name: 'Chicken', hp: 10, dmg: 0, speed: 1.1, wage: 0, jobs: [], scale: 0.85, desc: 'Food.' }),
 };
 
 export const KEEPER_ROSTER = ['beetle', 'fly', 'goblin', 'warlock', 'spider', 'troll', 'bile', 'mistress', 'hound', 'dragon'];

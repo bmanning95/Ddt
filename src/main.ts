@@ -1,50 +1,87 @@
+import '@fontsource/vt323';
+import '@fontsource/unifrakturcook/700.css';
 import './style.css';
-import * as THREE from 'three';
-import { PS1Pipeline, shared } from './render/ps1';
-import { createTextureArray } from './render/textures';
+import { App } from './app';
+import { Game } from './game/game';
 import { generateRealm } from './game/mapgen';
-import { TerrainRenderer } from './render/terrain';
-import { KeeperCamera } from './render/camera';
+import { defaultRules } from './game/realm';
+import { Keeper } from './game/keeper';
 
 const canvas = document.getElementById('view') as HTMLCanvasElement;
-const renderer = new THREE.WebGLRenderer({ canvas, antialias: false, powerPreference: 'high-performance' });
-renderer.setPixelRatio(1);
-renderer.setClearColor(0x050307);
-const pipe = new PS1Pipeline(renderer);
-shared.uTex.value = createTextureArray();
+const ui = document.getElementById('ui') as HTMLElement;
+const app = new App(canvas, ui);
 
-const scene = new THREE.Scene();
 const params = new URLSearchParams(location.search);
-const seed = Number(params.get('seed') ?? 1234);
+const seed = Number(params.get('seed') ?? Math.floor(Math.random() * 1e6));
+const rules = defaultRules(0);
 const layout = generateRealm({ seed, w: 64, h: 64, depth: 0, goldMul: 1, water: 1, lava: 1, rockiness: 0.5, caves: 10, portals: 1, heroBase: true });
-for (let i = 0; i < layout.map.revealed.length; i++) layout.map.revealed[i] = params.has('reveal') ? 1 : layout.map.revealed[i];
-const terrain = new TerrainRenderer(layout.map);
-terrain.extraLights.push({ x: layout.heart.x + 0.5, z: layout.heart.z + 0.5, y: 1.2, r: 1.1, g: 0.3, b: 0.22, radius: 6, flicker: 0 });
-scene.add(terrain.group);
+const keeper = new Keeper();
+keeper.gold = rules.startGold;
+const game = new Game(layout, rules, keeper, seed);
+game.director.populate([]);
+app.loadRealm(game, 'The Mire of Woe');
 
-const cam = new KeeperCamera(1);
-cam.setBounds(64, 64);
-cam.jumpTo(layout.heart.x + 0.5, layout.heart.z + 0.5);
+(window as any).__app = app;
+(window as any).__game = game;
 
-function resize() {
-  const w = window.innerWidth, h = window.innerHeight;
-  pipe.resize(w, h);
-  cam.camera.aspect = pipe.lowW / pipe.lowH;
-  cam.camera.updateProjectionMatrix();
-}
-window.addEventListener('resize', resize);
-resize();
-
-let last = performance.now();
-function frame(now: number) {
-  const dt = Math.min(0.05, (now - last) / 1000);
-  last = now;
-  shared.uTime.value += dt;
-  terrain.update();
-  cam.update(dt);
-  shared.uFogRange.value.set(cam.dist + 4, cam.dist + 22);
-  pipe.render(scene, cam.camera);
-  requestAnimationFrame(frame);
-}
-requestAnimationFrame(frame);
-(window as any).__cam = cam;
+// ---- debug helpers (used for automated screenshots) ----
+(window as any).__dbg = {
+  run(seconds: number) {
+    const g = app.game!;
+    const steps = Math.floor(seconds * 30);
+    for (let i = 0; i < steps; i++) g.update(1 / 30);
+  },
+  tagRect(x0: number, z0: number, x1: number, z1: number) {
+    const g = app.game!;
+    for (let z = z0; z <= z1; z++) for (let x = x0; x <= x1; x++) g.tagDig(x, z, true);
+  },
+  build(room: number, x0: number, z0: number, x1: number, z1: number) {
+    const g = app.game!;
+    let n = 0;
+    for (let z = z0; z <= z1; z++) for (let x = x0; x <= x1; x++) if (g.build(x, z, room)) n++;
+    return n;
+  },
+  look(x: number, z: number, dist = 10, yaw = 0) {
+    app.cam.jumpTo(x, z);
+    app.cam.dist = app.cam.distGoal = dist;
+    app.cam.yaw = app.cam.yawGoal = yaw;
+  },
+  heart() {
+    return app.game!.heartCenter();
+  },
+  revealAll() {
+    const m = app.game!.map;
+    for (let i = 0; i < m.revealed.length; i++) { m.revealed[i] = 1; }
+    app.terrain!.markAll();
+  },
+};
+(window as any).__dbg.tunnel = (x0: number, z0: number, x1: number, z1: number, w = 1) => {
+  const g = app.game!;
+  let x = x0, z = z0;
+  const tag = (cx: number, cz: number) => { for (let a = 0; a < w; a++) for (let b = 0; b < w; b++) g.tagDig(cx + a, cz + b, true); };
+  while (x !== x1) { x += Math.sign(x1 - x); tag(x, z); }
+  while (z !== z1) { z += Math.sign(z1 - z); tag(x, z); }
+};
+(window as any).__dbg.scenario = (minutes = 4) => {
+  const g = app.game!;
+  const d = (window as any).__dbg;
+  const [hx, hz] = g.heartCenter();
+  const x = Math.floor(hx), z = Math.floor(hz);
+  const p = g.layout.portals[0];
+  d.tunnel(x, z, p.x, p.z, 2);
+  // carve room space around the heart
+  d.tagRect(x - 8, z - 3, x - 4, z + 3);
+  d.tagRect(x + 4, z - 3, x + 8, z + 3);
+  d.tagRect(x - 3, z - 8, x + 3, z - 4);
+  d.tagRect(x - 3, z + 4, x + 3, z + 8);
+  const steps = minutes * 4;
+  for (let k = 0; k < steps; k++) {
+    d.run(15);
+    g.keeper.gold = Math.max(g.keeper.gold, 4000);
+    d.build(3, x - 8, z - 3, x - 5, z + 3);
+    d.build(4, x + 4, z - 3, x + 8, z + 3);
+    d.build(5, x - 3, z - 8, x + 3, z - 5);
+    d.build(6, x - 3, z + 5, x + 3, z + 8);
+  }
+  return { dug: g.stats.dug, claimed: g.stats.claimed, creatures: g.creatures.filter((c) => c.alive).map((c) => c.kind + ':' + c.state).join(' ') };
+};

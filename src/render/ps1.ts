@@ -10,7 +10,7 @@ export const shared = {
   uSnap: { value: 1 },
   uAffine: { value: 0.55 },
   uTex: { value: null as THREE.DataArrayTexture | null },
-  uAmbient: { value: new THREE.Color(0.1, 0.085, 0.11) },
+  uAmbient: { value: new THREE.Color(0.12, 0.1, 0.13) },
   uFogColor: { value: new THREE.Color(0.02, 0.012, 0.025) },
   uFogRange: { value: new THREE.Vector2(16, 34) },
   uLightGrid: { value: null as THREE.DataTexture | null },
@@ -278,7 +278,7 @@ export class PS1Pipeline {
   lowW = 480;
   lowH = 270;
   scale = 2;
-  targetHeight = 270;
+  targetHeight = 360;
 
   constructor(renderer: THREE.WebGLRenderer) {
     this.renderer = renderer;

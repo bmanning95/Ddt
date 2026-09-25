@@ -15,6 +15,8 @@ export interface PrimOpts {
   color?: RGB | number;
   layer?: Tex;
   uvScale?: [number, number];
+  front?: Tex; // box only: layer for the +z face
+  frontColor?: RGB | number;
 }
 
 // Accumulates low-poly primitives into a single BufferGeometry with
@@ -61,10 +63,15 @@ export class GeoBuilder {
       [[0, 1, 0], [-x, y, z, x, y, z, x, y, -z, -x, y, -z], []],
       [[0, -1, 0], [-x, -y, -z, x, -y, -z, x, -y, z, -x, -y, z], []],
     ];
+    let fi = 0;
     for (const [n, p] of faces) {
       const uvs = [0, 0, us, 0, us, vs, 0, vs];
       const b: number[] = [];
-      for (let k = 0; k < 4; k++) b.push(this.vert(m, p[k * 3], p[k * 3 + 1], p[k * 3 + 2], n[0], n[1], n[2], uvs[k * 2], uvs[k * 2 + 1], c, l));
+      const isFront = fi++ === 0 && o.front !== undefined;
+      const fl = isFront ? o.front! : l;
+      const fc = isFront && o.frontColor !== undefined ? (typeof o.frontColor === 'number' ? hexRGB(o.frontColor) : o.frontColor) : c;
+      const fuv = isFront ? [0, 0, 1, 0, 1, 1, 0, 1] : uvs;
+      for (let k = 0; k < 4; k++) b.push(this.vert(m, p[k * 3], p[k * 3 + 1], p[k * 3 + 2], n[0], n[1], n[2], fuv[k * 2], fuv[k * 2 + 1], fc, fl));
       this.idx.push(b[0], b[1], b[2], b[0], b[2], b[3]);
     }
   }

@@ -272,6 +272,9 @@ export function generateRealm(o: GenOptions): RealmLayout {
     }
   }
 
+  // loose gold only exists where seams are
+  for (let i = 0; i < map.tile.length; i++) if (map.tile[i] !== Tile.Gold) map.gold[i] = 0;
+
   // 9. Guarantee connectivity through diggable ground.
   const targets: Pt[] = [...portals, ...heroGates, ...neutralCaves, ...heroCamps, ...crates];
   if (keep) targets.push(keep);

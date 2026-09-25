@@ -192,9 +192,8 @@ export class Screens {
         });
         if (avail.has(node.id)) d.addEventListener('click', () => res(node));
       });
-      n.querySelector('[data-a="abandon"]')!.addEventListener('click', () => {
-        if (confirm('Abandon this run? All progress will be lost.')) res('abandon');
-      });
+      const ab = n.querySelector('[data-a="abandon"]') as HTMLButtonElement;
+      armConfirm(ab, 'Click again to abandon', () => res('abandon'));
       n.querySelector('[data-a="menu"]')!.addEventListener('click', () => res('menu'));
     });
   }
@@ -396,13 +395,31 @@ export class Screens {
             <button data-a="abandon">Abandon Run</button>
           </div></div>`),
       );
-      n.querySelectorAll('button').forEach((b) =>
-        b.addEventListener('click', () => {
-          const a = (b as HTMLElement).dataset.a as any;
-          if (a === 'abandon' && !confirm('Abandon this run? The heart will be forsaken.')) return;
-          res(a);
-        }),
-      );
+      n.querySelectorAll('button').forEach((b) => {
+        const a = (b as HTMLElement).dataset.a as any;
+        if (a === 'abandon') armConfirm(b as HTMLButtonElement, 'Click again to forsake the run', () => res(a));
+        else b.addEventListener('click', () => res(a));
+      });
     });
   }
+}
+
+// Two-step confirmation inside the page (native confirm dialogs are not always available).
+function armConfirm(btn: HTMLButtonElement, prompt: string, onConfirm: () => void) {
+  const label = btn.innerHTML;
+  let armed = false;
+  let t = 0;
+  btn.addEventListener('click', () => {
+    if (armed) {
+      clearTimeout(t);
+      onConfirm();
+      return;
+    }
+    armed = true;
+    btn.innerHTML = `<span class="warn">${prompt}</span>`;
+    t = window.setTimeout(() => {
+      armed = false;
+      btn.innerHTML = label;
+    }, 3000);
+  });
 }

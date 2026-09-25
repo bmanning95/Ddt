@@ -10,6 +10,7 @@ It uses no image or audio files. Every texture is painted in code, every creatur
 npm install
 npm run dev      # http://localhost:5173
 npm run build    # static build in dist/
+npm run build:single   # one self-contained dist/underkeep.html (fonts and code inlined)
 ```
 
 Handy URL flags for development:

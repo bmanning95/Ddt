@@ -117,8 +117,11 @@ export class App {
   }
 
   // ------------------------------------------------------------------ realm lifecycle
-  loadRealm(g: Game, name: string) {
+  demo = false;
+
+  loadRealm(g: Game, name: string, demo = false) {
     this.unloadRealm();
+    this.demo = demo;
     this.game = g;
     this.realmName = name;
     this.terrain = new TerrainRenderer(g.map);
@@ -138,7 +141,11 @@ export class App {
     this.paused = false;
     this.speed = 1;
     this.simRunning = true;
-    this.hud.show(true);
+    this.hud.show(!demo);
+    if (demo) {
+      this.cam.dist = this.cam.distGoal = 13;
+      this.cam.jumpTo(hx, hz);
+    }
     this.hud.setInfo('<span class="dim">Tag earth for your imps to dig. Build a Treasury, Lair and Hatchery, then claim the Portal.</span>');
     // prime terrain so the first frame is complete
     for (let k = 0; k < 20; k++) this.terrain.update();
@@ -297,12 +304,18 @@ export class App {
       return;
     }
 
-    if (this.possession.active) {
+    if (this.demo) {
+      this.cam.yawGoal += dt * 0.07;
+      this.cam.update(dt);
+      this.hoverTile = null;
+      this.hoverCreature = null;
+    } else if (this.possession.active) {
       this.possession.update(dt);
     } else if (!this.overlayOpen) this.handleInput(dt);
+    else this.cam.update(dt);
 
     // simulation
-    if (this.simRunning && !this.paused && !this.overlayOpen) {
+    if (this.simRunning && !this.paused && (!this.overlayOpen || this.demo)) {
       this.acc += dt * this.speed;
       let steps = 0;
       while (this.acc >= SIM_DT && steps < 10) {
@@ -353,6 +366,7 @@ export class App {
     for (const e of g.events) {
       switch (e.type) {
         case 'msg':
+          if (this.demo) break;
           this.hud.message(e.text!, e.color, e.important);
           if (e.important) this.sfx.play('bell');
           break;
@@ -420,6 +434,7 @@ export class App {
       else if (key === '1') this.speed = 1;
       else if (key === '2') this.speed = 2;
       else if (key === '3') this.speed = 4;
+      else if (key === 'm') this.sfx.toggleMusic();
       else if (key === 'h') {
         const [hx, hz] = g.heartCenter();
         cam.panTo(hx, hz);
@@ -581,7 +596,7 @@ export class App {
     const g = this.game!;
     const h = this.hoverTile;
     const hc = this.hoverCreature;
-    const visible = !!h && !this.possession.active && !this.input.overUI;
+    const visible = !!h && !this.possession.active && !this.input.overUI && !this.demo && !this.overlayOpen;
     this.hand.root.visible = visible;
     this.fx.cursorLight.on = visible;
     if (h) {
@@ -624,7 +639,7 @@ export class App {
 
     // tile cursor
     const m = g.map;
-    this.cursor.visible = !!h && !this.possession.active;
+    this.cursor.visible = visible;
     if (h) {
       const i = m.idx(h.x, h.z);
       const solid = this.solidForPick(h.x, h.z);

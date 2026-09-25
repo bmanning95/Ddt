@@ -68,7 +68,7 @@ export class Director {
     if (L.heroKeep) {
       const k = L.heroKeep;
       const lordKind = g.rules.depth >= 7 ? 'avatar' : 'lord';
-      const lord = g.spawn(lordKind, HEROES, k.x + 0.5, k.z + 0.5, Math.min(10, 2 + depth));
+      const lord = g.spawn(lordKind, HEROES, k.x + 0.5, k.z + 0.5, Math.min(10, 1 + depth));
       this.scaleHero(lord);
       lord.campTile = g.map.idx(k.x, k.z);
       this.wave.lord = lord;

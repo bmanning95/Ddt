@@ -453,6 +453,7 @@ button.small:hover {
 .screen {
   position: absolute;
   inset: 0;
+  overflow-y: auto;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -515,8 +516,9 @@ button.small:hover {
   max-width: 720px;
 }
 .panelbox {
-  padding: 18px 26px;
+  padding: 14px 26px;
   max-width: 900px;
+  margin: auto;
 }
 .panelbox h2 {
   font-family: 'UnifrakturCook', serif;
@@ -592,8 +594,8 @@ button.small:hover {
 .runmap {
   position: relative;
   width: 860px;
-  height: 460px;
-  margin: 10px auto;
+  height: 360px;
+  margin: 4px auto;
 }
 .runmap svg {
   position: absolute;

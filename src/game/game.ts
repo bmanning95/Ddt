@@ -121,6 +121,10 @@ export class Game {
   // ------------------------------------------------------------------ creatures
   spawn(kind: string, owner: number, x: number, z: number, level = 1): Creature {
     const c = new Creature(kind, owner, x, z, level);
+    if (owner === PLAYER || owner === NEUTRAL) {
+      c.maxHp = Math.round(c.maxHp * this.rules.minionHpMul);
+      c.hp = c.maxHp;
+    }
     this.creatures.push(c);
     this.byId.set(c.id, c);
     return c;
@@ -537,7 +541,7 @@ export class Game {
     if (!target.alive) return;
     let a = amount;
     if (target.shieldT > 0) a *= 0.4;
-    a = Math.max(1, a - target.def.armor * 0.6);
+    a = Math.max(1, a * (40 / (40 + target.def.armor * (1 + (target.level - 1) * 0.05))));
     target.hp -= a;
     target.hitFlash = 0.15;
     target.lastHurtBy = src;

@@ -63,7 +63,7 @@ function digTargetFrom(g: Game, stand: number, c: Creature): number {
     const ni = nz * m.w + nx;
     if (!m.tagged[ni]) return;
     const t = m.tile[ni];
-    if (!(isDiggable(t) || (t === Tile.Wall && m.owner[ni] !== PLAYER))) return;
+    if (!(isDiggable(t) || t === Tile.Wall)) return;
     if ((g.digCount.get(ni) ?? 0) >= 3) return;
     found = ni;
   });
@@ -389,7 +389,7 @@ function jobValid(g: Game, c: Creature, j: ImpJob): boolean {
   const t = m.tile[j.target];
   switch (j.type) {
     case 'dig':
-      return !!m.tagged[j.target] && isSolid(t) && t !== Tile.Rock && !(t === Tile.Wall && m.owner[j.target] === PLAYER);
+      return !!m.tagged[j.target] && isSolid(t) && t !== Tile.Rock;
     case 'pickup':
       return m.gold[j.target] > 0 && c.carryGold < IMP_CAP;
     case 'claim':

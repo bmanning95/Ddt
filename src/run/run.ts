@@ -248,8 +248,8 @@ export function buildRealmConfig(run: Run, node: RunNode): { gen: GenOptions; ru
     rules.objectiveTarget = 8000 + depth * 3000;
     gen.goldMul = 1.4;
   } else if (node.type === 'elite') {
-    rules.heroHpMul *= 1.25;
-    rules.heroLevelBonus += 2;
+    rules.heroHpMul *= 1.2;
+    rules.heroLevelBonus += 1;
   } else if (node.type === 'boss') {
     rules.heroHpMul *= 1.1;
     rules.heroLevelBonus += 2;

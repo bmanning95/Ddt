@@ -2,7 +2,7 @@ import type { Game } from './game';
 import type { Creature } from './entity';
 import { Tile, Room, PLAYER, HEROES, NEUTRAL, isSolid } from './defs';
 import { followPath, stepTowards, faceTowards, ARRIVED, BLOCKED } from './movement';
-import { findEnemy, findAlly, meleeTick, rangedTick, fire, targetable } from './combat';
+import { findEnemy, findAlly, findIntruder, meleeTick, rangedTick, fire, targetable } from './combat';
 import { xpForLevel, levelMult } from './creatures';
 import { damageDoor } from './traps';
 
@@ -57,8 +57,8 @@ export function updateMinion(g: Game, c: Creature, dt: number) {
   const hm = g.rules.hungerMul;
   c.hunger += (dt / c.def.hungerTime) * hm;
   if (c.state !== 'sleep') c.tired += dt / c.def.awakeTime;
-  if (c.lair < 0 && c.def.awakeTime < 9999) c.anger += dt * 0.0009;
-  if (c.hunger > 1.6) c.anger += dt * 0.002;
+  if (c.lair < 0 && c.def.awakeTime < 9999 && c.stateT > 5) c.anger += dt * 0.0006;
+  if (c.hunger > 2) c.anger += dt * 0.0015;
   if (c.anger >= 1 && !c.leaving && !c.retinue) {
     c.leaving = true;
     g.msg(`A ${c.def.name} has lost patience with you and is leaving!`, '#ff7050', true);
@@ -73,10 +73,10 @@ export function updateMinion(g: Game, c: Creature, dt: number) {
 
   // combat first
   c.thinkCd -= dt;
-  if (c.target && (!targetable(c.target) || Math.hypot(c.target.x - c.x, c.target.z - c.z) > SIGHT * 1.6)) c.target = null;
+  if (c.target && (!targetable(c.target) || Math.hypot(c.target.x - c.x, c.target.z - c.z) > SIGHT * 2.4)) c.target = null;
   if (!c.target && c.thinkCd <= 0 && c.state !== 'sleep') {
     const guardBonus = c.state === 'guard' ? 2.5 : 0;
-    c.target = findEnemy(g, c, SIGHT + guardBonus);
+    c.target = findEnemy(g, c, SIGHT + guardBonus) ?? (c.hp > c.maxHp * 0.35 ? findIntruder(g, c, 11 + guardBonus) : null);
   }
   if (c.target && c.state !== 'leave') {
     if (c.state !== 'fight') {
@@ -171,7 +171,10 @@ export function updateMinion(g: Game, c: Creature, dt: number) {
       c.path = null;
       return;
     }
-    if (r === ARRIVED) arrive(g, c);
+    if (r === ARRIVED) {
+      c.path = null;
+      arrive(g, c);
+    }
     return;
   }
   if (c.state === 'gotoChicken') {
@@ -379,7 +382,7 @@ function workAt(g: Game, c: Creature, dt: number) {
       c.anim = 'train';
       // face the training post in the room
       faceTowards(c, 0.3, 0.7, dt, 3);
-      const cost = 2.2 * dt;
+      const cost = 1.2 * dt;
       if (g.keeper.gold < cost || c.level >= 10) {
         c.state = 'idle';
         return;
@@ -669,7 +672,7 @@ export function updateHero(g: Game, c: Creature, dt: number) {
         best = t;
       }
     }
-    const p = g.pf.find(c.tx, c.tz, best % m.w, (best / m.w) | 0, g.digCostFn(c), 9000);
+    const p = g.pf.find(c.tx, c.tz, best % m.w, (best / m.w) | 0, g.digCostFn(c), 9000, false, (x, z) => m.solid(x, z));
     if (!p) {
       c.anim = 'idle';
       return;

@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import type { App } from './app';
 import type { Creature } from './game/entity';
-import { isSolid, Tile, PLAYER, isDiggable } from './game/defs';
+import { isSolid, Tile, isDiggable } from './game/defs';
 import { hostile, targetable, fire, dmgMul } from './game/combat';
 import { rigSpec } from './render/models';
 
@@ -177,7 +177,7 @@ export class Possession {
     if (!m.inBounds(tx, tz)) return;
     const i = m.idx(tx, tz);
     const t = m.tile[i];
-    if (isSolid(t) && c.isImp && (isDiggable(t) || (t === Tile.Wall && m.owner[i] !== PLAYER))) {
+    if (isSolid(t) && c.isImp && (isDiggable(t) || t === Tile.Wall)) {
       c.anim = 'dig';
       this.digT += dt;
       if (this.digT > 0.4) {

@@ -67,7 +67,7 @@ export class Pathfinder {
 
   // Returns list of tile indices from start (exclusive) to goal (inclusive), or null.
   // If `adjacentOk`, reaching any tile 8-adjacent to the goal counts (for goals that are solid).
-  find(sx: number, sz: number, tx: number, tz: number, cost: CostFn, maxNodes = 6000, adjacentOk = false): number[] | null {
+  find(sx: number, sz: number, tx: number, tz: number, cost: CostFn, maxNodes = 6000, adjacentOk = false, blockCorner?: (x: number, z: number) => boolean): number[] | null {
     const w = this.w,
       h = this.h;
     if (sx < 0 || sz < 0 || sx >= w || sz >= h) return null;
@@ -107,7 +107,9 @@ export class Pathfinder {
         if (c === Infinity) continue;
         if (d >= 4) {
           // no corner cutting
-          if (cost(cx + NX[d], cz) === Infinity || cost(cx, cz + NZ[d]) === Infinity) continue;
+          if (blockCorner) {
+            if (blockCorner(cx + NX[d], cz) || blockCorner(cx, cz + NZ[d])) continue;
+          } else if (cost(cx + NX[d], cz) === Infinity || cost(cx, cz + NZ[d]) === Infinity) continue;
           c *= SQRT2;
         }
         const ng = gc + c;

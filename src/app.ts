@@ -587,7 +587,7 @@ export class App {
   canTag(i: number) {
     const m = this.game!.map;
     const t = m.tile[i];
-    return isDiggable(t) || (t === Tile.Wall && m.owner[i] === HEROES && !!m.revealed[i]);
+    return isDiggable(t) || (t === Tile.Wall && (m.owner[i] === PLAYER || !!m.revealed[i]));
   }
 
   solidForPick(x: number, z: number) {

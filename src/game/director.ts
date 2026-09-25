@@ -24,6 +24,8 @@ export class Director {
   warned = false;
   hintT = 0;
   hint = 0;
+  adviseT = 30;
+  lastAdvice: Record<string, number> = {};
 
   constructor(public g: Game) {
     this.wave.nextT = g.rules.firstWave;
@@ -92,7 +94,7 @@ export class Director {
 
   heroLevel() {
     const g = this.g;
-    return Math.min(10, 1 + g.rules.heroLevelBonus + g.rng.int(0, 1) + Math.floor(this.wave.spawned / 3));
+    return Math.min(10, 1 + g.rules.heroLevelBonus + g.rng.int(0, 1) + Math.floor(this.wave.spawned / 4));
   }
 
   scaleHero(c: Creature) {
@@ -114,10 +116,44 @@ export class Director {
     }
   }
 
+  private advise(key: string, text: string, color = '#ffb070') {
+    const g = this.g;
+    if (g.time - (this.lastAdvice[key] ?? -999) < 75) return;
+    this.lastAdvice[key] = g.time;
+    g.msg(text, color, true);
+  }
+
+  // the mentor nags about unmet needs before creatures walk out
+  private advisor(dt: number) {
+    const g = this.g;
+    this.adviseT -= dt;
+    if (this.adviseT > 0) return;
+    this.adviseT = 12;
+    let noBed = 0,
+      hungry = 0,
+      angry: Creature | null = null,
+      owed = 0;
+    for (const c of g.creatures) {
+      if (!c.alive || c.owner !== PLAYER || c.isImp || c.kind === 'chicken' || c.def.wage <= 0) continue;
+      if (c.lair < 0 && c.def.awakeTime < 9999) noBed++;
+      if (c.hunger > 1.4) hungry++;
+      if (c.owed > 0) owed++;
+      if (c.anger > 0.65 && !c.leaving && (!angry || c.anger > angry.anger)) angry = c;
+    }
+    if (noBed >= 2) this.advise('bed', `${noBed} of your minions have no bed. Expand your Lair.`);
+    if (hungry >= 2) this.advise('food', 'Your minions are starving. Build a larger Hatchery.');
+    if (owed >= 2 && g.keeper.gold < 200) this.advise('pay', 'Your coffers are empty and wages are due. Dig for gold!');
+    if (angry) this.advise('angry', `Your ${angry.def.name} is seething and may soon desert you.`, '#ff8060');
+    // the heart slowly knits itself back together
+    const k = g.keeper;
+    if (g.time - g.heartLastHit > 8 && k.heartHp < k.heartMax) k.heartHp = Math.min(k.heartMax, k.heartHp + 12 * 4);
+  }
+
   update(dt: number) {
     const g = this.g;
     const m = g.map;
     this.hints(dt);
+    this.advisor(dt);
 
     // portal attraction
     this.portalT -= dt;
@@ -166,8 +202,8 @@ export class Director {
     this.wave.spawned++;
     const gate = gates[(this.wave.spawned - 1) % gates.length];
     const depth = g.rules.depth;
-    const tier = HERO_TIERS[Math.min(HERO_TIERS.length - 1, Math.floor((depth + this.wave.spawned / 3) / 2))];
-    const n = g.rules.waveSize + Math.floor(this.wave.spawned * 0.6);
+    const tier = HERO_TIERS[Math.min(HERO_TIERS.length - 1, Math.floor((depth + this.wave.spawned / 4) / 2.5))];
+    const n = g.rules.waveSize + Math.floor(this.wave.spawned * 0.35);
     // every party has a tunneller
     const kinds = ['dwarf'];
     for (let k = 1; k < n; k++) kinds.push(g.rng.pick(tier));

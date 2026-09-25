@@ -217,3 +217,21 @@ function explode(g: Game, p: Projectile, hit: Creature | null) {
     }
   }
 }
+
+// Heroes trespassing on the keeper's claimed ground are sensed by nearby minions, walls or no.
+export function findIntruder(g: Game, c: Creature, radius: number): Creature | null {
+  const m = g.map;
+  let best: Creature | null = null;
+  let bd = radius;
+  for (const e of g.creatures) {
+    if (!targetable(e) || !hostile(c, e) || e.asleepInCamp) continue;
+    const i = m.idx(e.tx, e.tz);
+    if (m.owner[i] !== c.owner) continue;
+    const d = Math.hypot(e.x - c.x, e.z - c.z);
+    if (d < bd) {
+      bd = d;
+      best = e;
+    }
+  }
+  return best;
+}

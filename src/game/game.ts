@@ -74,6 +74,8 @@ export class Game {
   won = false;
   heartTiles: number[] = [];
   heartHit = 0;
+  heartLastHit = -99;
+  campWarned = new Set<number>();
   bedOwner = new Map<number, number>(); // lair tile -> creature id
   stats = { dug: 0, claimed: 0, heroesSlain: 0, minionsLost: 0, goldMined: 0, souls: 0 };
   rally: { x: number; z: number } | null = null;
@@ -363,7 +365,7 @@ export class Game {
     if (!m.inBounds(x, z)) return false;
     const i = m.idx(x, z);
     const t = m.tile[i];
-    const diggable = isDiggable(t) || (t === Tile.Wall && m.owner[i] !== PLAYER && m.revealed[i]);
+    const diggable = isDiggable(t) || (t === Tile.Wall && (m.owner[i] === PLAYER || !!m.revealed[i]));
     if (!diggable) return false;
     const v = on ? 1 : 0;
     if (m.tagged[i] === v) return false;
@@ -437,9 +439,9 @@ export class Game {
   onRevealed(i: number) {
     for (const c of this.creatures) {
       if (!c.alive || c.campTile < 0) continue;
-      if (c.tx + c.tz * this.map.w === i && c.owner === HEROES && c.asleepInCamp) {
-        c.asleepInCamp = false;
-        this.msg('Heroes lurk in the dark... they have spotted your minions!', '#9fc0ff');
+      if (c.tx + c.tz * this.map.w === i && c.owner === HEROES && c.asleepInCamp && !this.campWarned.has(c.campTile)) {
+        this.campWarned.add(c.campTile);
+        this.msg('Your imps have uncovered slumbering heroes. Tread carefully... or strike first.', '#9fc0ff', true);
       }
     }
   }
@@ -678,6 +680,7 @@ export class Game {
     if (this.over) return;
     k.heartHp -= dmg;
     this.heartHit = 0.25;
+    this.heartLastHit = this.time;
     const [hx, hz] = this.heartCenter();
     this.fx('heartHit', hx, hz, 1.2, 6);
     this.sfx('heartHit', hx, hz);

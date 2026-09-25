@@ -72,19 +72,26 @@ export function generateRealm(o: GenOptions): RealmLayout {
     let px = horizontal ? 2 : rng.int(12, w - 12);
     let pz = horizontal ? rng.int(12, h - 12) : 2;
     let width = rng.chance(0.5) ? 2 : 1;
-    for (let step = 0; step < w * 3; step++) {
+    const carve = () => {
       for (let a = 0; a < width; a++) {
         const tx = horizontal ? px : px + a;
         const tz = horizontal ? pz + a : pz;
         if (tx > 1 && tz > 1 && tx < w - 2 && tz < h - 2) map.tile[map.idx(tx, tz)] = kind;
       }
+    };
+    for (let step = 0; step < w * 3; step++) {
+      carve();
+      // meander sideways, carving the corner so the river stays 4-connected
+      if (rng.chance(0.35)) {
+        if (horizontal) pz = Math.max(3, Math.min(h - 5, pz + (rng.chance(0.5) ? 1 : -1)));
+        else px = Math.max(3, Math.min(w - 5, px + (rng.chance(0.5) ? 1 : -1)));
+        carve();
+      }
       if (horizontal) {
         px++;
-        if (rng.chance(0.35)) pz += rng.chance(0.5) ? 1 : -1;
         if (px >= w - 2) break;
       } else {
         pz++;
-        if (rng.chance(0.35)) px += rng.chance(0.5) ? 1 : -1;
         if (pz >= h - 2) break;
       }
       if (rng.chance(0.05)) width = rng.chance(0.5) ? 2 : 1;

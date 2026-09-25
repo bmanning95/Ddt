@@ -11,6 +11,8 @@ import { Screens, loadOptions, Options, SAVE_KEY, BEST_KEY } from './ui/screens'
 import { shared } from './render/ps1';
 import { KEEPER_ROSTER, CREATURES } from './game/creatures';
 import { place as placeTrap, canPlace as canPlaceTrap } from './game/traps';
+import { castSpell } from './game/spells';
+import { Room, Tile } from './game/defs';
 
 const canvas = document.getElementById('view') as HTMLCanvasElement;
 const ui = document.getElementById('ui') as HTMLElement;
@@ -349,5 +351,63 @@ const dbg = {
     }
     return { dug: g.stats.dug, claimed: g.stats.claimed, creatures: g.creatures.filter((c) => c.alive).map((c) => c.kind + ':' + c.state).join(' ') };
   },
+};
+// crude autopilot used to sanity-check realm balance
+(dbg as any).autoplay = (minutes = 30, depth = 0, retinue: RetinueEntry[] = []) => {
+  const r = new Run(4242 + depth);
+  r.retinue = retinue;
+  const col = r.nodes.filter((n) => n.col === Math.min(depth, 6));
+  const node = col.find((n) => n.type === 'conquest') ?? col.find((n) => n.type === 'elite') ?? r.nodes[0];
+  node.type = 'conquest';
+  node.omens = [];
+  const g = startRealm(r, node);
+  app.loadRealm(g, node.name);
+  const m = g.map;
+  const [hx, hz] = g.heartCenter();
+  const x = Math.floor(hx),
+    z = Math.floor(hz);
+  const p = g.layout.portals[0];
+  const k = g.layout.heroKeep!;
+  dbg.tunnel(x, z, p.x, p.z, 2);
+  const zones: [Room, number, number, number, number][] = [
+    [Room.Treasury, -8, -3, -5, 0],
+    [Room.Lair, -8, 1, -5, 4],
+    [Room.Hatchery, 5, -3, 8, 0],
+    [Room.Training, 5, 1, 8, 4],
+    [Room.Library, -3, -8, 3, -5],
+    [Room.Workshop, -3, 5, 3, 8],
+  ];
+  for (const [, a, b, c, d] of zones) dbg.tagRect(x + Math.min(a, -4 > a ? a : a) - (a > 0 ? 1 : 0), z + b - (b > 0 ? 1 : 0), x + c + (c < 0 ? 1 : 0), z + d + (d < 0 ? 1 : 0));
+  const log: string[] = [];
+  let attacked = false;
+  for (let t = 0; t < minutes * 4; t++) {
+    dbg.run(15);
+    if (g.over) break;
+    for (const [room, a, b, c, d] of zones) {
+      if (!g.keeper.rooms.has(room)) continue;
+      for (let zz = z + b; zz <= z + d; zz++) for (let xx = x + a; xx <= x + c; xx++) if (g.keeper.gold > 600) g.build(xx, zz, room);
+    }
+    const imps = g.countOwned(1, 'imp');
+    if (imps < 8 && g.keeper.gold > 800) castSpell(g, 'imp', hx + 2.5, hz + 0.5, null);
+    const army = g.creatures.filter((c) => c.alive && c.owner === 1 && !c.isImp && c.kind !== 'chicken');
+    if (t >= 24 && t % 4 === 0) dbg.tunnel(p.x, p.z, k.x, k.z, 1);
+    // mine revealed gold near home
+    if (t % 4 === 0)
+      for (let i = 0; i < m.tile.length; i++) {
+        const tx = i % m.w,
+          tz = (i / m.w) | 0;
+        if (m.tile[i] === Tile.Gold && m.revealed[i] && Math.hypot(tx - x, tz - z) < 16) g.tagDig(tx, tz, true);
+      }
+    // rally on the lord when strong, stand down after a while so they can eat and sleep
+    if (g.rally && t % 12 === 8) castSpell(g, 'cta', g.rally.x, g.rally.z, null);
+    else if (!g.rally && t > 40 && t % 12 === 0 && army.length >= 12) castSpell(g, 'cta', k.x + 0.5, k.z + 0.5, null);
+    void attacked;
+    if (t % 8 === 0)
+      log.push(
+        `${t / 4}m gold=${Math.round(g.keeper.gold)} heart=${Math.round(g.keeper.heartHp)} army=${army.length} lv~${(army.reduce((s, c) => s + c.level, 0) / Math.max(1, army.length)).toFixed(1)} imps=${imps} heroes=${g.creatures.filter((c) => c.alive && c.owner === 2).length} waves=${g.director.wave.spawned} lord=${Math.round(g.director.wave.lord?.hp ?? 0)} rooms=${g.rooms.filter((q) => q.owner === 1).map((q) => q.type + ':' + q.tiles.length).join(',')}`,
+      );
+  }
+  log.push(`END over=${g.over} won=${g.won} t=${Math.round(g.time)}s slain=${g.stats.heroesSlain} lost=${g.stats.minionsLost}`);
+  return log;
 };
 (window as any).__dbg = dbg;

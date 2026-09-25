@@ -4,6 +4,7 @@ import { Tile, Room, PLAYER, HEROES, NEUTRAL, isSolid } from './defs';
 import { followPath, stepTowards, faceTowards, ARRIVED, BLOCKED } from './movement';
 import { findEnemy, findAlly, meleeTick, rangedTick, fire, targetable } from './combat';
 import { xpForLevel, levelMult } from './creatures';
+import { damageDoor } from './traps';
 
 const SIGHT = 5.5;
 
@@ -485,8 +486,75 @@ export function heartRing(g: Game): number[] {
   return out;
 }
 
+function updateCaptive(g: Game, c: Creature, dt: number): boolean {
+  const m = g.map;
+  switch (c.state) {
+    case 'carried':
+      c.anim = 'held';
+      return true;
+    case 'ko':
+      c.anim = 'sleep';
+      c.koT += dt;
+      if (c.koT > 45) {
+        c.state = 'march';
+        c.hp = c.maxHp * 0.3;
+        g.fx('hit', c.x, c.z, 0.6, 4);
+      }
+      return true;
+    case 'prisoner': {
+      c.anim = 'stunned';
+      const i = m.idx(c.tx, c.tz);
+      if (m.room[i] !== Room.Prison) {
+        // prison sold out from under them: they come to
+        c.state = 'march';
+        return true;
+      }
+      c.hp -= c.maxHp * 0.008 * dt;
+      if (c.hp <= 0) {
+        const x = c.x,
+          z = c.z;
+        g.kill(c, null);
+        c.removed = true;
+        const s = g.spawn('skeleton', PLAYER, x, z, Math.max(1, c.level));
+        s.state = 'idle';
+        g.fx('summon', x, z, 0.5, 20);
+        g.sfx('summon', x, z);
+        g.msg(`A starved ${c.def.name} rises again as your Skeleton.`, '#e0e0c0', true);
+      }
+      return true;
+    }
+    case 'tortured': {
+      c.anim = 'stunned';
+      const i = m.idx(c.tx, c.tz);
+      if (m.room[i] !== Room.Torture) {
+        c.state = 'march';
+        return true;
+      }
+      c.tortureT += dt;
+      c.hp = Math.max(1, c.hp - c.maxHp * 0.005 * dt);
+      if (Math.floor(c.tortureT * 1.5) !== Math.floor((c.tortureT - dt) * 1.5)) {
+        g.fx('blood', c.x, c.z, 0.7, 3);
+        g.sfx('slap', c.x, c.z);
+      }
+      if (c.tortureT > 30 + c.level * 3) {
+        c.owner = PLAYER;
+        c.state = 'idle';
+        c.hp = c.maxHp * 0.5;
+        c.anger = 0.2;
+        c.campTile = -1;
+        g.fx('levelup', c.x, c.z, 1, 20);
+        g.sfx('join', c.x, c.z);
+        g.msg(`The ${c.def.name} has been broken. It now serves you!`, '#ff90b0', true);
+      }
+      return true;
+    }
+  }
+  return false;
+}
+
 export function updateHero(g: Game, c: Creature, dt: number) {
   const m = g.map;
+  if (updateCaptive(g, c, dt)) return;
   levelCheck(g, c);
   if (c.asleepInCamp) {
     c.anim = 'sleep';
@@ -610,8 +678,25 @@ export function updateHero(g: Game, c: Creature, dt: number) {
     c.pathI = 0;
     c.state = 'march';
   }
-  // dig through solid tiles along the path
+  // bash through doors, dig through solid tiles along the path
   const next = c.path[c.pathI];
+  if (next !== undefined && g.doors.has(next) && g.doors.get(next)!.owner !== c.owner) {
+    const tx = next % m.w,
+      tz = (next / m.w) | 0;
+    const d = Math.hypot(tx + 0.5 - c.x, tz + 0.5 - c.z);
+    if (d > 1.15) {
+      stepTowards(g, c, tx + 0.5, tz + 0.5, dt, 1.0);
+      return;
+    }
+    faceTowards(c, tx + 0.5 - c.x, tz + 0.5 - c.z, dt);
+    if (c.attackCd <= 0) {
+      c.attackCd = c.def.attackRate;
+      c.anim = 'attack';
+      c.animT = 0;
+      damageDoor(g, next, c.dmg * g.rules.heroDmgMul * (c.kind === 'giant' || c.kind === 'barbarian' ? 1.6 : 1));
+    }
+    return;
+  }
   if (next !== undefined && isSolid(m.tile[next])) {
     c.state = 'digging';
     c.goal = next;

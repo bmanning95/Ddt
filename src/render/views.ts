@@ -45,8 +45,13 @@ export class CreatureView {
     const lvlScale = 1 + (c.level - 1) * 0.025;
     r.pivot.scale.setScalar(c.def.scale * lvlScale);
 
-    r.root.position.set(c.x, c.y + (spec.hover ? spec.hover * 0 : 0), c.z);
+    r.root.position.set(c.x, c.y, c.z);
     r.root.rotation.y = c.angle;
+    if (c.carriedBy) {
+      // slung over an imp's shoulders
+      r.root.position.y = 0.55;
+      r.root.rotation.y = c.carriedBy.angle + Math.PI / 2;
+    }
 
     const t = c.animT;
     const anim = c.alive ? c.anim : 'dead';
@@ -210,7 +215,12 @@ export class CreatureView {
         const k = Math.min(1, this.deadT / 0.5);
         r.pivot.rotation.x = -(Math.PI / 2) * k;
         r.pivot.position.y = 0.1 * k;
-        if (this.deadT > 1.5) r.root.position.y -= (this.deadT - 1.5) * 0.4;
+        if (biped) {
+          p.armL.rotation.z = 0.6;
+          p.armR.rotation.z = -0.6;
+        }
+        const left = c.decayAt - c.deathT;
+        if (left < 1.5 && !c.carriedBy) r.root.position.y -= (1.5 - left) * 0.3;
         break;
       }
       default: {
@@ -256,6 +266,7 @@ export class EntityRenderer {
   private crateMesh: THREE.Mesh | null = null;
   private goldSig = '';
   private crateSig = '';
+  private staticT = 0;
 
   constructor(public game: Game) {
     this.barGeo = new THREE.BufferGeometry();
@@ -284,7 +295,6 @@ export class EntityRenderer {
     const seen = new Set<number>();
     for (const c of g.creatures) {
       if (c.removed) continue;
-      if (!c.alive && c.deathT > 2.5) continue;
       if (heldIds.has(c.id)) continue;
       const visible = g.isVisible(c.x, c.z) || c.owner === PLAYER;
       let v = this.views.get(c.id);
@@ -305,7 +315,11 @@ export class EntityRenderer {
       }
     }
     this.updateBars(camera);
-    this.updateStatic();
+    this.staticT -= dt;
+    if (this.staticT <= 0) {
+      this.staticT = 0.2;
+      this.updateStatic();
+    }
   }
 
   private updateBars(camera: THREE.Camera) {
@@ -336,7 +350,7 @@ export class EntityRenderer {
       }
     };
     for (const c of g.creatures) {
-      if (!c.alive || c.kind === 'chicken' || c.removed) continue;
+      if (!c.alive || c.kind === 'chicken' || c.removed || c.state === 'ko' || c.state === 'carried' || c.carriedBy) continue;
       const v = this.views.get(c.id);
       if (!v || !v.rig.root.visible) continue;
       const show = c.hp < c.maxHp - 0.5 || c === this.hovered || c.state === 'fight' || c.def.boss;

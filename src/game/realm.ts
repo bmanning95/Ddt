@@ -35,7 +35,7 @@ export function defaultRules(depth: number): RealmRules {
     depth,
     objective: 'conquest',
     objectiveTarget: 0,
-    heartVault: 2500,
+    heartVault: 3500,
     heartHp: 4000,
     treasuryMul: 1,
     roomCostMul: 1,
@@ -56,7 +56,7 @@ export function defaultRules(depth: number): RealmRules {
     trainMul: 1,
     researchMul: 1,
     hungerMul: 1,
-    startGold: 3000,
+    startGold: 2500,
     startImps: 4,
   };
 }

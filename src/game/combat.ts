@@ -23,15 +23,21 @@ export interface Projectile {
 
 let PID = 1;
 
+const CAPTIVE = new Set(['ko', 'prisoner', 'tortured', 'carried']);
+export function isCaptive(c: Creature) {
+  return CAPTIVE.has(c.state);
+}
+
 export function hostile(a: Creature, b: Creature): boolean {
   if (a.owner === b.owner) return false;
+  if (CAPTIVE.has(a.state) || CAPTIVE.has(b.state)) return false;
   if (a.owner === NEUTRAL || b.owner === NEUTRAL) return false;
   if (a.kind === 'chicken' || b.kind === 'chicken') return false;
   return true;
 }
 
 export function targetable(c: Creature): boolean {
-  return c.alive && !c.removed && c.state !== 'held' && !c.carriedBy && c.y < 1;
+  return c.alive && !c.removed && c.state !== 'held' && !c.carriedBy && c.y < 1 && !CAPTIVE.has(c.state);
 }
 
 export function findEnemy(g: Game, c: Creature, radius: number): Creature | null {

@@ -33,6 +33,9 @@ export class Keeper {
   research = 0;
   researchIdx = 0;
   manufacture = 0;
+  inventory: Record<string, number> = {};
+  craft: string | null = null;
+  crafted = 0;
   paydayT = 200;
   paydayInterval = 200;
   heartHp = 4000;

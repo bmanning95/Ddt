@@ -19,6 +19,10 @@ export class RoomProps {
   private sig = '';
   private heart: THREE.Mesh | null = null;
   private vortices: { mesh: THREE.Mesh; speed: number }[] = [];
+  private trapMesh: THREE.Mesh | null = null;
+  private trapSig = -1;
+  private doorMeshes = new Map<number, THREE.Mesh>();
+  private doorGeo: Record<string, THREE.BufferGeometry> = {};
 
   constructor(public game: Game) {
     this.mat = createModelMaterial();
@@ -29,6 +33,7 @@ export class RoomProps {
   setGame(g: Game) {
     this.game = g;
     this.sig = '';
+    this.trapSig = -1;
   }
 
   private signature(): string {
@@ -57,6 +62,72 @@ export class RoomProps {
       if (hpF < 0.3) this.heartTint.x += Math.sin(time * 10) * 0.2;
     }
     for (const v of this.vortices) v.mesh.rotation.z = time * v.speed;
+    this.updateTraps();
+  }
+
+  private updateTraps() {
+    const g = this.game;
+    const m = g.map;
+    if (g.trapsVersion !== this.trapSig) {
+      this.trapSig = g.trapsVersion;
+      if (this.trapMesh) {
+        this.group.remove(this.trapMesh);
+        this.trapMesh.geometry.dispose();
+        this.trapMesh = null;
+      }
+      const b = new GeoBuilder();
+      for (const [i, t] of g.traps) {
+        const x = (i % m.w) + 0.5,
+          z = ((i / m.w) | 0) + 0.5;
+        b.box(M(x, 0.02, z), 0.7, 0.04, 0.7, { color: 0x3a3438, layer: Tex.Metal });
+        if (t.key === 'spike') for (let k = 0; k < 9; k++) b.cyl(M(x - 0.2 + (k % 3) * 0.2, 0.04, z - 0.2 + Math.floor(k / 3) * 0.2), 0.035, 0, 0.12, 4, { color: 0x9a9aa4, layer: Tex.Metal });
+        if (t.key === 'fire') b.box(M(x, 0.05, z), 0.4, 0.03, 0.4, { color: 0xff6010, layer: Tex.Flame });
+        if (t.key === 'lightning') {
+          b.cyl(M(x, 0.04, z), 0.04, 0.03, 0.5, 4, { color: 0x8a8aa0, layer: Tex.Metal });
+          b.sphere(M(x, 0.56, z), 0.07, 5, 3, { color: 0x80a0ff, layer: Tex.Flame });
+        }
+        if (t.key === 'alarm') b.cyl(M(x, 0.04, z), 0.12, 0.05, 0.2, 6, { color: 0xc0a040, layer: Tex.Metal });
+      }
+      if (!b.empty) {
+        this.trapMesh = new THREE.Mesh(b.build(), this.mat);
+        this.group.add(this.trapMesh);
+      }
+      // doors
+      for (const [i, mesh] of this.doorMeshes) {
+        if (!g.doors.has(i)) {
+          this.group.remove(mesh);
+          this.doorMeshes.delete(i);
+        }
+      }
+      for (const [i, d] of g.doors) {
+        if (this.doorMeshes.has(i)) continue;
+        const mesh = new THREE.Mesh(this.getDoorGeo(d.key), this.mat);
+        mesh.position.set((i % m.w) + 0.5, 0, ((i / m.w) | 0) + 0.5);
+        mesh.rotation.y = d.axis === 1 ? 0 : Math.PI / 2;
+        this.group.add(mesh);
+        this.doorMeshes.set(i, mesh);
+      }
+    }
+    for (const [i, mesh] of this.doorMeshes) {
+      const d = g.doors.get(i);
+      if (!d) continue;
+      mesh.children.length;
+      mesh.position.y = -d.open * 1.1;
+      mesh.visible = d.open < 0.99;
+    }
+  }
+
+  private getDoorGeo(key: string): THREE.BufferGeometry {
+    if (this.doorGeo[key]) return this.doorGeo[key];
+    const b = new GeoBuilder();
+    const iron = key === 'irondoor';
+    // panel spans the corridor (x axis), studded, with banded frame
+    b.box(M(0, 0.62, 0), 0.96, 1.24, 0.14, { color: iron ? 0x4a4a52 : 0x7a5230, layer: iron ? Tex.Metal : Tex.Wood });
+    for (const y of [0.25, 0.95]) b.box(M(0, y, 0), 0.98, 0.08, 0.17, { color: iron ? 0x2a2a30 : 0x3a3a40, layer: Tex.Metal });
+    b.box(M(0.3, 0.62, 0.09), 0.08, 0.08, 0.04, { color: 0xc09030, layer: Tex.Metal });
+    b.box(M(0, 0.62, 0.08), 0.18, 0.24, 0.03, { color: 0xa01010, layer: Tex.Cloth });
+    this.doorGeo[key] = b.build();
+    return this.doorGeo[key];
   }
 
   private rebuild() {

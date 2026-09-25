@@ -4,11 +4,14 @@ import { SPELLS, SPELL_ORDER, spellCost } from '../game/spells';
 import { CREATURES, KEEPER_ROSTER } from '../game/creatures';
 import { layerToCanvas, Tex } from '../render/textures';
 import type { Creature } from '../game/entity';
+import { TRAPS, unlockedTraps } from '../game/traps';
 
 export interface HudCallbacks {
   onRoom(type: Room): void;
   onSpell(key: string): void;
   onSell(): void;
+  onTrap(key: string): void;
+  onCraft(key: string): void;
   onPickKind(kind: string): void;
   onJumpKind(kind: string): void;
   onMinimap(x: number, z: number): void;
@@ -67,11 +70,11 @@ export class Hud {
   minimap!: HTMLCanvasElement;
   private mmCtx!: CanvasRenderingContext2D;
   private mmImg!: ImageData;
-  tab: 'rooms' | 'spells' | 'minions' = 'rooms';
-  private buttons: { el: HTMLElement; kind: 'room' | 'spell' | 'sell'; id: number | string }[] = [];
+  tab: 'rooms' | 'spells' | 'forge' | 'minions' = 'rooms';
+  private buttons: { el: HTMLElement; kind: 'room' | 'spell' | 'sell' | 'trap'; id: number | string }[] = [];
   private minionRows = new Map<string, HTMLElement>();
   private lastTabSig = '';
-  selected: { kind: 'room' | 'spell' | 'sell'; id: number | string } | null = null;
+  selected: { kind: 'room' | 'spell' | 'sell' | 'trap'; id: number | string } | null = null;
 
   constructor(parent: HTMLElement, private texData: Uint8Array, private cb: HudCallbacks) {
     this.el = document.createElement('div');
@@ -85,6 +88,7 @@ export class Hud {
         <div class="tabs">
           <button data-tab="rooms" class="tab on">Rooms</button>
           <button data-tab="spells" class="tab">Spells</button>
+          <button data-tab="forge" class="tab">Forge</button>
           <button data-tab="minions" class="tab">Minions</button>
         </div>
         <div id="tabbody"></div>
@@ -208,6 +212,30 @@ export class Hud {
         this.buttons.push({ el: b, kind: 'spell', id: key });
       }
       this.tabBody.appendChild(grid);
+    } else if (this.tab === 'forge') {
+      const grid = document.createElement('div');
+      grid.className = 'grid';
+      const unlocked = new Set(unlockedTraps(g));
+      for (const key of Object.keys(TRAPS)) {
+        const d = TRAPS[key];
+        const b = document.createElement('button');
+        b.className = 'slot';
+        b.innerHTML = `<div class="icon spellicon" style="background:radial-gradient(circle,#3a2a14,#0a0602);color:#ffc080;text-shadow:0 0 8px #ff8020">${d.icon}</div><div class="cost">×0</div>`;
+        if (!unlocked.has(key)) b.classList.add('locked');
+        b.addEventListener('click', () => this.cb.onTrap(key));
+        b.addEventListener('contextmenu', (e) => {
+          e.preventDefault();
+          this.cb.onCraft(key);
+        });
+        b.addEventListener('mouseenter', () => this.setInfo(`<b style="color:#ffc080">${d.name}</b> <span class="dim">${d.cost} forge pts</span><br>${d.desc}<br><span class="dim">Left-click to place. Right-click to prioritise forging.</span>`));
+        grid.appendChild(b);
+        this.buttons.push({ el: b, kind: 'trap', id: key });
+      }
+      this.tabBody.appendChild(grid);
+      const note = document.createElement('div');
+      note.className = 'forgenote';
+      note.style.cssText = 'font-size:16px;margin-top:6px;line-height:1.1';
+      this.tabBody.appendChild(note);
     } else {
       const list = document.createElement('div');
       list.className = 'minions';
@@ -279,7 +307,7 @@ export class Hud {
     } else this.researchEl.innerHTML = '<span class="dim">All secrets known.</span>';
 
     // tabs: rebuild when unlocks change
-    const sig = this.tab + '|' + [...k.rooms].join(',') + '|' + [...k.spells].join(',');
+    const sig = this.tab + '|' + [...k.rooms].join(',') + '|' + [...k.spells].join(',') + '|' + k.crafted;
     if (sig !== this.lastTabSig) {
       this.lastTabSig = sig;
       this.buildTab(g);
@@ -298,9 +326,22 @@ export class Hud {
         afford = k.gold >= cost;
         (b.el.querySelector('.cost') as HTMLElement).textContent = locked ? '???' : String(cost);
       }
+      if (b.kind === 'trap') {
+        const n = k.inventory[b.id as string] ?? 0;
+        (b.el.querySelector('.cost') as HTMLElement).textContent = (k.craft === b.id ? '⚒' : '') + '×' + n;
+        afford = n > 0;
+        locked = !unlockedTraps(g).includes(b.id as string);
+      }
       b.el.classList.toggle('locked', locked);
       b.el.classList.toggle('poor', !afford && !locked);
       b.el.classList.toggle('sel', !!this.selected && this.selected.kind === b.kind && this.selected.id === b.id);
+    }
+    if (this.tab === 'forge') {
+      const note = this.tabBody.querySelector('.forgenote') as HTMLElement | null;
+      if (note) {
+        const ws = g.roomTiles(Room.Workshop);
+        note.innerHTML = ws ? `<span class="dim">Forge points:</span> ${Math.floor(k.manufacture)} <span class="dim">· items forged ${k.crafted}</span>` : '<span class="dim">Build a Workshop and attract Trolls to forge doors and traps.</span>';
+      }
     }
     if (this.tab === 'minions') {
       const stats = new Map<string, { n: number; fight: number; work: number; idle: number }>();
@@ -437,9 +478,14 @@ export function creatureInfo(c: Creature): string {
     march: 'Marching',
     digging: 'Tunnelling',
     rally: 'Rallying',
+    ko: 'Knocked out',
+    prisoner: 'Imprisoned',
+    tortured: 'Being tortured',
+    carried: 'Being dragged off',
+    possessed: 'Possessed',
   };
   let st = stateName[c.state] ?? (c.state.startsWith('to') ? 'Travelling' : c.state);
-  if (c.isImp && c.job) st = { dig: 'Digging', claim: 'Claiming', fortify: 'Fortifying', pickup: 'Collecting gold', deposit: 'Hauling gold', wander: 'Idling', unclaim: 'Claiming', carryCorpse: 'Hauling', carryCrate: 'Hauling' }[c.job.type];
+  if (c.isImp && c.job) st = { dig: 'Digging', claim: 'Claiming', fortify: 'Fortifying', pickup: 'Collecting gold', deposit: 'Hauling gold', wander: 'Idling', unclaim: 'Claiming', haulPrisoner: 'Dragging a prisoner', haulCorpse: 'Hauling a corpse' }[c.job.type];
   if (c.asleepInCamp) st = 'Slumbering';
   const owner = c.owner === PLAYER ? 'Your' : c.owner === HEROES ? 'Hero' : 'Neutral';
   let s = `<b style="color:${OWNER_CSS[c.owner]}">${owner} ${d.name}</b> <span class="dim">Lv ${c.level}</span><br>`;

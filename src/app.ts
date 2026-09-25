@@ -15,8 +15,9 @@ import { Room, ROOMS, PLAYER, Tile, isSolid, WALL_H, HEROES, isDiggable } from '
 import { SPELLS, castSpell } from './game/spells';
 import { Sfx } from './audio/sfx';
 import { Possession } from './possess';
+import { TRAPS, canPlace, place } from './game/traps';
 
-export type Mode = { kind: 'hand' } | { kind: 'build'; room: Room } | { kind: 'spell'; key: string } | { kind: 'sell' };
+export type Mode = { kind: 'hand' } | { kind: 'build'; room: Room } | { kind: 'spell'; key: string } | { kind: 'sell' } | { kind: 'trap'; key: string };
 
 const SIM_DT = 1 / 30;
 
@@ -81,6 +82,10 @@ export class App {
       onRoom: (r) => this.setMode(this.mode.kind === 'build' && this.mode.room === r ? { kind: 'hand' } : { kind: 'build', room: r }),
       onSpell: (k) => this.selectSpell(k),
       onSell: () => this.setMode(this.mode.kind === 'sell' ? { kind: 'hand' } : { kind: 'sell' }),
+      onTrap: (k) => this.setMode(this.mode.kind === 'trap' && this.mode.key === k ? { kind: 'hand' } : { kind: 'trap', key: k }),
+      onCraft: (k) => {
+        if (this.game) this.game.keeper.craft = this.game.keeper.craft === k ? null : k;
+      },
       onPickKind: (k) => this.pickKind(k),
       onJumpKind: (k) => this.jumpKind(k),
       onMinimap: (fx, fz) => {
@@ -179,7 +184,7 @@ export class App {
 
   setMode(m: Mode) {
     this.mode = m;
-    this.hud.selected = m.kind === 'build' ? { kind: 'room', id: m.room } : m.kind === 'spell' ? { kind: 'spell', id: m.key } : m.kind === 'sell' ? { kind: 'sell', id: 0 } : null;
+    this.hud.selected = m.kind === 'build' ? { kind: 'room', id: m.room } : m.kind === 'spell' ? { kind: 'spell', id: m.key } : m.kind === 'sell' ? { kind: 'sell', id: 0 } : m.kind === 'trap' ? { kind: 'trap', id: m.key } : null;
     this.dragTag = 0;
     this.dragLast = -1;
   }
@@ -220,7 +225,16 @@ export class App {
       this.hud.message('Your hand is full.', '#a08070');
       return false;
     }
-    if (c.owner !== PLAYER || !c.alive || c.kind === 'chicken') return false;
+    const captive = c.owner === HEROES && (c.state === 'ko' || c.state === 'prisoner' || c.state === 'tortured');
+    if ((c.owner !== PLAYER && !captive) || !c.alive || c.kind === 'chicken' || c.carriedBy) return false;
+    if (captive) {
+      const h = g.hauls.get(c.id);
+      if (h !== undefined) {
+        const imp = g.byId.get(h);
+        if (imp) g.releaseJob(imp);
+      }
+      c.koT = 0;
+    }
     g.releaseJob(c);
     c.path = null;
     c.target = null;
@@ -241,6 +255,26 @@ export class App {
     if (!c) return false;
     const i = m.idx(tile.x, tile.z);
     const t = m.tile[i];
+    const captive = c.owner === HEROES;
+    if (captive) {
+      const r = m.room[i];
+      if (m.owner[i] !== PLAYER || (r !== Room.Prison && r !== Room.Torture)) {
+        this.hud.message('Captives may only be dropped in a Prison or Torture Chamber.', '#a08070');
+        this.sfx.play('deny');
+        return false;
+      }
+      this.held.pop();
+      c.x = tile.x + 0.5;
+      c.z = tile.z + 0.5;
+      c.y = 0;
+      c.state = r === Room.Prison ? 'prisoner' : 'tortured';
+      c.hp = Math.max(c.hp, c.maxHp * 0.5);
+      c.tortureT = 0;
+      this.hand.trigger('open');
+      this.sfx.play('drop');
+      this.hud.setHeld(this.held);
+      return true;
+    }
     const ok = !isSolid(t) && g.walkableFor(c, tile.x, tile.z) && (m.owner[i] === PLAYER || (t === Tile.Floor && m.room[i] === Room.Bridge));
     if (!ok) {
       this.hud.message('You may only drop minions onto your own territory.', '#a08070');
@@ -442,8 +476,8 @@ export class App {
         if (this.mode.kind !== 'hand') this.setMode({ kind: 'hand' });
         else this.onMenu?.();
       } else if (key === 'Tab') {
-        const tabs: Hud['tab'][] = ['rooms', 'spells', 'minions'];
-        this.hud.tab = tabs[(tabs.indexOf(this.hud.tab) + 1) % 3];
+        const tabs: Hud['tab'][] = ['rooms', 'spells', 'forge', 'minions'];
+        this.hud.tab = tabs[(tabs.indexOf(this.hud.tab) + 1) % tabs.length];
         (this.hud.el.querySelector(`[data-tab="${this.hud.tab}"]`) as HTMLElement)?.click();
       }
     }
@@ -501,7 +535,7 @@ export class App {
           if (key === 'possess') this.setMode({ kind: 'hand' });
         }
       } else if (this.mode.kind === 'hand') {
-        if (hc && hc.owner === PLAYER && hc.kind !== 'chicken') this.pickUp(hc);
+        if (hc && ((hc.owner === PLAYER && hc.kind !== 'chicken') || (hc.owner === HEROES && ['ko', 'prisoner', 'tortured'].includes(hc.state)))) this.pickUp(hc);
         else if (ht) {
           const i = m.idx(ht.x, ht.z);
           if (!isSolid(m.tile[i]) && m.gold[i] > 0 && m.revealed[i]) {
@@ -516,6 +550,15 @@ export class App {
         }
       } else if (this.mode.kind === 'build' || this.mode.kind === 'sell') {
         this.dragTag = 2;
+      } else if (this.mode.kind === 'trap' && ht) {
+        const err = canPlace(g, this.mode.key, ht.x, ht.z);
+        if (err) {
+          this.hud.message(err, '#a08070');
+          this.sfx.play('deny');
+        } else {
+          place(g, this.mode.key, ht.x, ht.z);
+          if ((g.keeper.inventory[this.mode.key] ?? 0) <= 0) this.setMode({ kind: 'hand' });
+        }
       }
     }
     if (!inp.down[0]) this.dragTag = 0;
@@ -589,6 +632,10 @@ export class App {
     }
     if (this.mode.kind === 'spell') return `<b style="color:#c8a0ff">${SPELLS[this.mode.key].name}</b>`;
     if (this.mode.kind === 'sell') return '<b class="warn">Sell</b>';
+    if (this.mode.kind === 'trap') {
+      const err = canPlace(g, this.mode.key, h.x, h.z);
+      return `<b>${TRAPS[this.mode.key].name}</b> ×${g.keeper.inventory[this.mode.key] ?? 0}${err ? `<br><span class="warn">${err}</span>` : ''}`;
+    }
     return null;
   }
 
@@ -648,6 +695,7 @@ export class App {
       if (this.mode.kind === 'build') col = g.canBuild(h.x, h.z, this.mode.room) ? 0xff3020 : 0x40ff60;
       else if (this.mode.kind === 'sell') col = 0xff4020;
       else if (this.mode.kind === 'spell') col = 0xb070ff;
+      else if (this.mode.kind === 'trap') col = canPlace(g, this.mode.key, h.x, h.z) ? 0xff3020 : 0x40ff60;
       else if (solid && !this.canTag(i)) col = 0x606060;
       this.cursorMat.color.setHex(col);
       this.cursorMat.opacity = 0.22 + Math.sin(this.time * 6) * 0.08;

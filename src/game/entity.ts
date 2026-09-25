@@ -3,9 +3,11 @@ import { CreatureDef, CREATURES, levelMult } from './creatures';
 export type Anim = 'idle' | 'walk' | 'dig' | 'work' | 'attack' | 'cast' | 'sleep' | 'eat' | 'held' | 'fall' | 'dead' | 'train' | 'research' | 'carry' | 'cheer' | 'stunned' | 'pray';
 
 export interface ImpJob {
-  type: 'dig' | 'claim' | 'fortify' | 'pickup' | 'deposit' | 'unclaim' | 'wander' | 'carryCorpse' | 'carryCrate';
+  type: 'dig' | 'claim' | 'fortify' | 'pickup' | 'deposit' | 'unclaim' | 'wander' | 'haulPrisoner' | 'haulCorpse';
   target: number; // tile index acted upon
   stand: number; // tile index to stand on
+  entity?: number; // creature id being hauled
+  phase?: number;
 }
 
 let NEXT_ID = 1;
@@ -57,6 +59,11 @@ export class Creature {
   removed = false;
   moving = false;
   rally: { x: number; z: number } | null = null;
+  rallyT = 0; // >0: temporary rally (alarm trap)
+  koT = 0;
+  tortureT = 0;
+  decayAt = 45;
+  graveTile = -1;
   guardTile = -1;
   lastHurtBy: Creature | null = null;
   leaving = false;

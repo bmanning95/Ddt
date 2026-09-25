@@ -12,6 +12,7 @@ import { separate } from './movement';
 import { updateProjectiles, Projectile } from './combat';
 import { Keeper } from './keeper';
 import { RealmRules } from './realm';
+import { TrapInst, DoorInst, updateTraps } from './traps';
 
 export interface GameEvent {
   type: 'msg' | 'sfx' | 'fx' | 'shake' | 'end';
@@ -36,16 +37,6 @@ export interface RoomInst {
   cz: number;
 }
 
-export interface Corpse {
-  x: number;
-  z: number;
-  kind: string;
-  owner: number;
-  t: number;
-  angle: number;
-  id: number;
-}
-
 export interface Crate {
   id: number;
   tile: number;
@@ -63,7 +54,10 @@ export class Game {
   creatures: Creature[] = [];
   byId = new Map<number, Creature>();
   projectiles: Projectile[] = [];
-  corpses: Corpse[] = [];
+  traps = new Map<number, TrapInst>();
+  doors = new Map<number, DoorInst>();
+  trapsVersion = 0;
+  graveRot = 0;
   crates: Crate[] = [];
   keeper: Keeper;
   rules: RealmRules;
@@ -72,6 +66,7 @@ export class Game {
   roomsVersion = 0;
   reservations = new Map<number, number>(); // key -> creature id
   digCount = new Map<number, number>(); // tile -> imps assigned
+  hauls = new Map<number, number>(); // hauled creature id -> imp id
   events: GameEvent[] = [];
   revealT = 0;
   portalT = 20;
@@ -160,6 +155,10 @@ export class Game {
     if (isSolid(t)) return false;
     if (t === Tile.Lava && !(c && (c.def.fireImmune || c.def.flying))) return false;
     if (m.room[i] === Room.Heart) return false;
+    if (this.doors.size) {
+      const d = this.doors.get(i);
+      if (d && (!c || c.owner !== d.owner)) return false;
+    }
     return true;
   }
 
@@ -191,6 +190,8 @@ export class Game {
       if (t === Tile.Wall) return m.owner[i] === c.owner ? Infinity : 6 + 14 / digger;
       if (t === Tile.Lava && !(c.def.fireImmune || c.def.flying)) return Infinity;
       if (m.room[i] === Room.Heart) return Infinity;
+      const d = this.doors.get(i);
+      if (d && d.owner !== c.owner) return 4 + d.hp / 150;
       if (t === Tile.Water) return 2.2;
       return 1;
     };
@@ -338,6 +339,17 @@ export class Game {
       const key2 = this.reserveKey(j.stand, k);
       if (this.reservations.get(key2) === c.id) this.reservations.delete(key2);
     }
+    if (j.entity !== undefined && this.hauls.get(j.entity) === c.id) {
+      this.hauls.delete(j.entity);
+      const e = this.creatures.find((o) => o.id === j.entity);
+      if (e && e.carriedBy === c) {
+        e.carriedBy = null;
+        if (e.state === 'carried') e.state = 'ko';
+        e.x = c.x;
+        e.z = c.z;
+      }
+      if (c.carrying && c.carrying.id === j.entity) c.carrying = null;
+    }
     if (j.type === 'dig') {
       const n = (this.digCount.get(j.target) ?? 1) - 1;
       if (n <= 0) this.digCount.delete(j.target);
@@ -466,7 +478,41 @@ export class Game {
       if (c.removed) continue;
       if (!c.alive) {
         c.deathT += dt;
+        if (c.carriedBy) {
+          c.x = c.carriedBy.x;
+          c.z = c.carriedBy.z;
+          if (!c.carriedBy.alive) c.carriedBy = null;
+        } else if (c.graveTile >= 0) {
+          if (c.deathT > c.decayAt) {
+            c.removed = true;
+            this.graveRot++;
+            this.fx('drain', c.x, c.z, 0.3, 10);
+            if (this.graveRot >= 3 && this.map.room[c.graveTile] === Room.Graveyard) {
+              this.graveRot -= 3;
+              const v = this.spawn('vampire', PLAYER, c.x, c.z, 1 + Math.floor(this.rules.depth / 2));
+              v.state = 'idle';
+              this.fx('summon', c.x, c.z, 0.5, 30);
+              this.sfx('summon', c.x, c.z);
+              this.msg('The graveyard stirs... a Vampire rises to serve you!', '#ff7090', true);
+            }
+          }
+        } else if (c.deathT > c.decayAt) c.removed = true;
         continue;
+      }
+      if (c.carriedBy) {
+        const k = c.carriedBy;
+        if (!k.alive || k.carrying !== c) {
+          c.carriedBy = null;
+          if (c.state === 'carried') c.state = 'ko';
+        } else {
+          c.x = k.x;
+          c.z = k.z;
+          continue;
+        }
+      }
+      if (c.rallyT > 0) {
+        c.rallyT -= dt;
+        if (c.rallyT <= 0) c.rally = this.rally;
       }
       c.stateT += dt;
       c.animT += dt;
@@ -503,6 +549,7 @@ export class Game {
     }
 
     updateProjectiles(this, dt);
+    updateTraps(this, dt);
     separate(this, dt);
     this.director.update(dt);
 
@@ -525,13 +572,9 @@ export class Game {
       }
     }
 
-    // corpses decay
-    for (const c of this.corpses) c.t += dt;
-    if (this.corpses.length && this.corpses[0].t > 40) this.corpses.shift();
-
     // compact
-    if (list.length > 0 && Math.floor(this.time) % 5 === 0) {
-      this.creatures = list.filter((c) => !c.removed && !(c.deathT > 2.5 && !c.alive));
+    if (list.length > 0 && Math.floor(this.time) !== Math.floor(this.time - dt)) {
+      this.creatures = list.filter((c) => !c.removed);
     }
 
     if (this.heartHit > 0) this.heartHit -= dt;
@@ -552,9 +595,37 @@ export class Game {
     if (target.hp <= 0) this.kill(target, src);
   }
 
+  prisonSpace(): number {
+    let cap = this.roomTiles(Room.Prison);
+    if (!cap) return 0;
+    for (const o of this.creatures) if (o.alive && (o.state === 'prisoner' || o.state === 'ko' || o.state === 'carried')) cap--;
+    return cap;
+  }
+
   kill(c: Creature, src: Creature | null) {
     if (!c.alive) return;
+    // with room in the prison, heroes are merely knocked senseless
+    if (c.owner === HEROES && !c.def.boss && c.state !== 'prisoner' && c.state !== 'tortured' && this.prisonSpace() > 0) {
+      c.hp = 1;
+      c.state = 'ko';
+      c.koT = 0;
+      c.target = null;
+      c.path = null;
+      c.campTile = -1;
+      c.asleepInCamp = false;
+      this.fx('hit', c.x, c.z, 0.5, 6);
+      this.sfx('herodie', c.x, c.z);
+      if (src) {
+        src.kills++;
+        src.xp += 40 + c.level * 25;
+      }
+      this.stats.heroesSlain++;
+      this.stats.souls += c.def.souls;
+      if (c.def.bounty) this.dropGold(c.x, c.z, c.def.bounty * this.rules.bountyMul * 0.5);
+      return;
+    }
     c.alive = false;
+    c.decayAt = c.kind === 'chicken' ? 0.5 : this.roomTiles(Room.Graveyard) > 0 && c.owner === HEROES ? 120 : 30;
     c.hp = 0;
     c.anim = 'dead';
     c.deathT = 0;
@@ -569,14 +640,14 @@ export class Game {
       c.carrying = null;
     }
     this.byId.delete(c.id);
-    if (c.kind !== 'chicken') this.corpses.push({ x: c.x, z: c.z, kind: c.kind, owner: c.owner, t: 0, angle: c.angle, id: c.id });
     this.fx('blood', c.x, c.z, 0.6, 14);
     this.sfx(c.def.hero ? 'herodie' : 'die', c.x, c.z);
     if (src) {
       src.kills++;
       src.xp += 40 + c.level * 25;
     }
-    if (c.owner === HEROES) {
+    const wasCaptive = c.state === 'prisoner' || c.state === 'tortured' || c.state === 'ko';
+    if (c.owner === HEROES && !wasCaptive) {
       this.stats.heroesSlain++;
       this.stats.souls += c.def.souls;
       if (c.def.bounty) this.dropGold(c.x, c.z, c.def.bounty * this.rules.bountyMul);

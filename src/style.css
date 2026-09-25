@@ -44,6 +44,10 @@ body {
 #ui > * {
   pointer-events: none;
 }
+#ui > .screen,
+#ui > .screen * {
+  pointer-events: auto;
+}
 .ui-block,
 .ui-block * {
   pointer-events: auto;
@@ -189,7 +193,7 @@ button {
   border: 2px solid #3a2a18;
   color: var(--dim);
   padding: 2px 0;
-  font-size: 18px;
+  font-size: 16px;
 }
 .tab.on {
   background: linear-gradient(#3a2414, #1a100a);

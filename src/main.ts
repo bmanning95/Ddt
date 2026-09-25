@@ -10,6 +10,7 @@ import { makeDemo } from './run/demo';
 import { Screens, loadOptions, Options, SAVE_KEY, BEST_KEY } from './ui/screens';
 import { shared } from './render/ps1';
 import { KEEPER_ROSTER, CREATURES } from './game/creatures';
+import { place as placeTrap, canPlace as canPlaceTrap } from './game/traps';
 
 const canvas = document.getElementById('view') as HTMLCanvasElement;
 const ui = document.getElementById('ui') as HTMLElement;
@@ -299,6 +300,11 @@ const dbg = {
   },
   heart() {
     return app.game!.heartCenter();
+  },
+  place(key: string, x: number, z: number) {
+    const g = app.game!;
+    g.keeper.inventory[key] = (g.keeper.inventory[key] ?? 0) + 1;
+    return canPlaceTrap(g, key, x, z) ?? placeTrap(g, key, x, z);
   },
   revealAll() {
     const m = app.game!.map;

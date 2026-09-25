@@ -85,10 +85,44 @@ function assign(g: Game, c: Creature, job: ImpJob, path: number[] | null) {
   else if (job.type === 'fortify') g.reserve(g.reserveKey(job.target, R_FORT), c);
 }
 
+function haulCandidate(g: Game, c: Creature, corpse: boolean): Creature | null {
+  const m = g.map;
+  const room = corpse ? Room.Graveyard : Room.Prison;
+  if (g.roomTiles(room) === 0) return null;
+  let best: Creature | null = null;
+  let bd = 40;
+  for (const e of g.creatures) {
+    if (e.removed || e.carriedBy) continue;
+    if (corpse ? e.alive || e.kind === 'chicken' || e.graveTile >= 0 || e.deathT < 1.5 : !(e.alive && e.state === 'ko')) continue;
+    const h = g.hauls.get(e.id);
+    if (h !== undefined && h !== c.id && g.byId.has(h)) continue;
+    if (!m.revealed[m.idx(e.tx, e.tz)]) continue;
+    const d = Math.abs(e.x - c.x) + Math.abs(e.z - c.z);
+    if (d < bd) {
+      bd = d;
+      best = e;
+    }
+  }
+  return best;
+}
+
+function tryHaul(g: Game, c: Creature, corpse: boolean): boolean {
+  const e = haulCandidate(g, c, corpse);
+  if (!e) return false;
+  const w = g.map.w;
+  const ft = g.freeTileNear(e.tx, e.tz, c);
+  if (!ft || !g.pathTo(c, ft[0], ft[1])) return false;
+  const p = c.path;
+  assign(g, c, { type: corpse ? 'haulCorpse' : 'haulPrisoner', target: ft[1] * w + ft[0], stand: ft[1] * w + ft[0], entity: e.id, phase: 0 }, p);
+  g.hauls.set(e.id, c.id);
+  return true;
+}
+
 function findJob(g: Game, c: Creature) {
   const m = g.map;
   const w = m.w;
   const canStore = g.keeper.gold < g.keeper.goldCap;
+  if (tryHaul(g, c, false)) return;
   if (c.carryGold >= IMP_CAP && canStore) {
     if (startDeposit(g, c)) return;
   }
@@ -147,6 +181,7 @@ function findJob(g: Game, c: Creature) {
   };
   if (tryJob(pick)) return;
   if (claim >= 0 && tryJob({ type: 'claim', target: claim, stand: claim })) return;
+  if (tryHaul(g, c, true)) return;
   if (tryJob(fort)) return;
   if (tryJob(spareDig)) return;
   if (c.carryGold > 0 && canStore && startDeposit(g, c)) return;
@@ -217,6 +252,11 @@ export function updateImp(g: Game, c: Creature, dt: number) {
     g.releaseJob(c);
     c.path = null;
     c.thinkCd = 0.1;
+    return;
+  }
+
+  if (j.type === 'haulPrisoner' || j.type === 'haulCorpse') {
+    haul(g, c, j, dt);
     return;
   }
 
@@ -358,6 +398,13 @@ function jobValid(g: Game, c: Creature, j: ImpJob): boolean {
       return t === Tile.Earth && !m.tagged[j.target] && m.tile[j.stand] === Tile.Floor && m.owner[j.stand] === PLAYER;
     case 'deposit':
       return c.carryGold > 0;
+    case 'haulPrisoner':
+    case 'haulCorpse': {
+      const e = g.creatures.find((o) => o.id === j.entity);
+      if (!e || e.removed) return false;
+      if (j.phase === 0) return j.type === 'haulPrisoner' ? e.alive && e.state === 'ko' : !e.alive && !e.carriedBy;
+      return e.carriedBy === c;
+    }
     default:
       return true;
   }
@@ -384,3 +431,58 @@ function claimPortal(g: Game, x: number, z: number) {
 }
 
 export { HEROES };
+
+function haul(g: Game, c: Creature, j: ImpJob, dt: number) {
+  const m = g.map;
+  const e = g.creatures.find((o) => o.id === j.entity)!;
+  const prisoner = j.type === 'haulPrisoner';
+  const r = followPath(g, c, dt);
+  if (r === BLOCKED) {
+    g.releaseJob(c);
+    c.thinkCd = 0.3;
+    return;
+  }
+  if (r !== ARRIVED) return;
+  if (j.phase === 0) {
+    // pick it up and head for the room
+    const room = prisoner ? Room.Prison : Room.Graveyard;
+    const occupied = new Set<number>();
+    for (const o of g.creatures) if (o !== e && (o.state === 'prisoner' || o.graveTile >= 0)) occupied.add(o.tx + o.tz * m.w);
+    const dest =
+      g.pf.nearest(c.tx, c.tz, g.passFn(c), (i) => m.room[i] === room && m.owner[i] === PLAYER && !occupied.has(i), 150) ??
+      g.pf.nearest(c.tx, c.tz, g.passFn(c), (i) => m.room[i] === room && m.owner[i] === PLAYER, 150);
+    if (!dest) {
+      g.releaseJob(c);
+      c.thinkCd = 2;
+      return;
+    }
+    e.carriedBy = c;
+    c.carrying = e;
+    if (prisoner) e.state = 'carried';
+    j.phase = 1;
+    j.target = dest.goal;
+    j.stand = dest.goal;
+    c.path = dest.path;
+    c.pathI = 0;
+    g.sfx('pickup', c.x, c.z);
+    return;
+  }
+  // drop it off
+  e.carriedBy = null;
+  c.carrying = null;
+  e.x = (j.target % m.w) + 0.5;
+  e.z = ((j.target / m.w) | 0) + 0.5;
+  if (prisoner) {
+    e.state = 'prisoner';
+    e.hp = Math.max(e.hp, e.maxHp * 0.5);
+    g.msg(`A captured ${e.def.name} has been thrown in your prison.`, '#c0c8d0');
+  } else {
+    e.graveTile = j.target;
+    e.deathT = 0;
+    e.decayAt = 35;
+  }
+  g.sfx('drop', c.x, c.z);
+  g.hauls.delete(e.id);
+  c.job = null;
+  c.thinkCd = 0.2;
+}
